@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import {IOpenOracle} from "./interfaces/IOpenOracle.sol";
 
-contract openOracleDataProviderV3 {
+contract OpenOracleDataProviderV3 {
     /* ─── immutables & constants ────────────────────────────── */
     IOpenOracle public immutable oracle;
 

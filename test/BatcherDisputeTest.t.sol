@@ -2,8 +2,8 @@
 pragma solidity ^0.8.26;
 
 import "forge-std/Test.sol";
-import "../src/oracle.sol";
-import "../src/batcher.sol";
+import "../src/OpenOracle.sol";
+import "../src/OpenOracleBatcher.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract MockERC20 is ERC20 {
@@ -14,7 +14,7 @@ contract MockERC20 is ERC20 {
 
 contract OracleStateHashBatcherDisputeTest is Test {
     OpenOracle oracle;
-    openOracleBatcher batcher;
+    OpenOracleBatcher batcher;
     MockERC20 token1;
     MockERC20 token2;
 
@@ -23,7 +23,7 @@ contract OracleStateHashBatcherDisputeTest is Test {
 
     function setUp() public {
         oracle = new OpenOracle();
-        batcher = new openOracleBatcher(address(oracle));
+        batcher = new OpenOracleBatcher(address(oracle));
         token1 = new MockERC20("Token1", "TK1");
         token2 = new MockERC20("Token2", "TK2");
 
@@ -95,7 +95,7 @@ contract OracleStateHashBatcherDisputeTest is Test {
         vm.warp(block.timestamp + 6);
 
         // Create dispute data for batcher
-        openOracleBatcher.DisputeData[] memory disputes = new openOracleBatcher.DisputeData[](1);
+        OpenOracleBatcher.DisputeData[] memory disputes = new OpenOracleBatcher.DisputeData[](1);
         disputes[0].reportId = reportId;
         disputes[0].tokenToSwap = address(token1);
         disputes[0].newAmount1 = 1.1e18; // 1.1x multiplier

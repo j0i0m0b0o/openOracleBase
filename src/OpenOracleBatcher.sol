@@ -7,7 +7,7 @@ import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IER
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IOpenOracle} from "./interfaces/IOpenOracle.sol";
 
-contract openOracleBatcher is ReentrancyGuard {
+contract OpenOracleBatcher is ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     error EthTransferFailed();
