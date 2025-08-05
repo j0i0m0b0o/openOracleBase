@@ -1,55 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-/* ---------- external deps ---------- */
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-
-/* ---------- minimal OpenOracle interface ---------- */
-interface IOpenOracle {
-    struct CreateReportParams {
-        uint256 exactToken1Report;
-        uint256 escalationHalt;
-        uint256 settlerReward;
-        address token1Address;
-        uint48 settlementTime;
-        uint24 disputeDelay;
-        uint24 protocolFee;
-        address token2Address;
-        uint32 callbackGasLimit;
-        uint24 feePercentage;
-        uint16 multiplier;
-        bool timeType;
-        bool trackDisputes;
-        bool keepFee;
-        address callbackContract;
-        bytes4 callbackSelector;
-    }
-
-    function createReportInstance(CreateReportParams calldata params) external payable returns (uint256 reportId);
-
-    /* initial report overload with reporter */
-    function submitInitialReport(
-        uint256 reportId,
-        uint256 amount1,
-        uint256 amount2,
-        bytes32 stateHash,
-        address reporter
-    ) external;
-
-    struct extraReportData {
-        bytes32 stateHash;
-        address callbackContract;
-        uint32 numReports;
-        uint32 callbackGasLimit;
-        bytes4 callbackSelector;
-        bool trackDisputes;
-        bool keepFee;
-    }
-
-    function extraData(uint256 id) external view returns (extraReportData memory);
-}
+import {IOpenOracle} from "./interfaces/IOpenOracle.sol";
 
 /* ****************************************************
  *            OracleSwapFacility (v0.1)                *

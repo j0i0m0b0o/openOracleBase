@@ -2,8 +2,8 @@
 pragma solidity ^0.8.26;
 
 import "forge-std/Test.sol";
-import "../src/oracle.sol";
-import "../src/swapfacility.sol";
+import "../src/OpenOracle.sol";
+import "../src/OracleSwapFacility.sol";
 
 contract MockERC20 {
     mapping(address => uint256) public balanceOf;
