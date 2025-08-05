@@ -1,61 +1,7 @@
-/**
- * Submitted for verification at basescan.org on 2025-08-01
- */
-
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-interface IOpenOracle {
-    struct disputeRecord {
-        uint256 amount1;
-        uint256 amount2;
-        address tokenToSwap;
-        uint48 reportTimestamp;
-    }
-
-    struct extraReportData {
-        bytes32 stateHash;
-        address callbackContract;
-        uint32 numReports;
-        uint32 callbackGasLimit;
-        bytes4 callbackSelector;
-        bool trackDisputes;
-        bool keepFee;
-    }
-
-    struct ReportMeta {
-        uint256 exactToken1Report;
-        uint256 escalationHalt;
-        uint256 fee;
-        uint256 settlerReward;
-        address token1;
-        uint48 settlementTime;
-        address token2;
-        bool timeType;
-        uint24 feePercentage;
-        uint24 protocolFee;
-        uint16 multiplier;
-        uint24 disputeDelay;
-    }
-
-    struct ReportStatus {
-        uint256 currentAmount1;
-        uint256 currentAmount2;
-        uint256 price;
-        address payable currentReporter;
-        uint48 reportTimestamp;
-        uint48 settlementTimestamp;
-        address payable initialReporter;
-        uint48 lastReportOppoTime;
-        bool disputeOccurred;
-        bool isDistributed;
-    }
-
-    function nextReportId() external view returns (uint256);
-    function reportMeta(uint256 id) external view returns (ReportMeta memory);
-    function reportStatus(uint256 id) external view returns (ReportStatus memory);
-    function extraData(uint256 id) external view returns (extraReportData memory);
-}
+import {IOpenOracle} from "./interfaces/IOpenOracle.sol";
 
 contract openOracleDataProviderV3 {
     /* ─── immutables & constants ────────────────────────────── */
