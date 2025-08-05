@@ -36,8 +36,9 @@ At its most basic level the oracle works by having a reporter submit both a limi
 
 - [openOracle documentation](https://openprices.gitbook.io/openoracle-docs)
 
-## Install
+## Usage
 
+### Install
 To install dependencies and compile contracts:
 
 ```bash
