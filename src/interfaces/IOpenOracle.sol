@@ -15,6 +15,7 @@ interface IOpenOracle {
         uint32 numReports;
         uint32 callbackGasLimit;
         bytes4 callbackSelector;
+        address protocolFeeRecipient;
         bool trackDisputes;
         bool keepFee;
     }
@@ -64,6 +65,7 @@ interface IOpenOracle {
         bool keepFee;
         address callbackContract;
         bytes4 callbackSelector;
+        address protocolFeeRecipient;
     }
 
     function createReportInstance(CreateReportParams calldata params) external payable returns (uint256 reportId);
