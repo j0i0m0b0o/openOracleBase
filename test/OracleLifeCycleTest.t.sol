@@ -88,7 +88,8 @@ contract GasOptimizationLifecycleTest is Test {
                 callbackSelector: bytes4(0),
                 trackDisputes: false,
                 callbackGasLimit: uint32(0),
-                keepFee: false
+                keepFee: false,
+                protocolFeeRecipient: address(0)
             })
         );
 
@@ -97,7 +98,7 @@ contract GasOptimizationLifecycleTest is Test {
         assertEq(address(oracle).balance, ORACLE_FEE, "Oracle should have received fee");
 
         // Get state hash
-        (bytes32 stateHash,,,,,,) = oracle.extraData(reportId);
+        (bytes32 stateHash,,,,,,,) = oracle.extraData(reportId);
 
         // Submit initial report
         vm.prank(bob);
