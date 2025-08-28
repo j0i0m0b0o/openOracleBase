@@ -116,7 +116,7 @@ contract OpenOracleTest is Test {
         uint256 recipientBalanceBefore = token1.balanceOf(protocolFeeRecipient);
         
         vm.prank(protocolFeeRecipient);
-        uint256 withdrawnAmount = oracle.getProtocolFees(address(token1), protocolFeeRecipient);
+        uint256 withdrawnAmount = oracle.getProtocolFees(address(token1));
         
         assertEq(withdrawnAmount, expectedProtocolFee, "Withdrawn amount incorrect");
         assertEq(token1.balanceOf(protocolFeeRecipient), recipientBalanceBefore + expectedProtocolFee, "Balance after withdrawal incorrect");
@@ -193,7 +193,7 @@ contract OpenOracleTest is Test {
         uint256 recipientETHBefore = protocolFeeRecipient.balance;
         
         vm.prank(protocolFeeRecipient);
-        uint256 withdrawnETH = oracle.getETHProtocolFees(protocolFeeRecipient);
+        uint256 withdrawnETH = oracle.getETHProtocolFees();
         
         assertEq(withdrawnETH, expectedETHFee, "Withdrawn ETH amount incorrect");
         assertEq(protocolFeeRecipient.balance, recipientETHBefore + expectedETHFee, "ETH balance after withdrawal incorrect");
@@ -203,14 +203,14 @@ contract OpenOracleTest is Test {
     function testGetProtocolFeesWithZeroBalance() public {
         // Test withdrawing when no fees have accrued
         vm.prank(protocolFeeRecipient);
-        uint256 withdrawn = oracle.getProtocolFees(address(token1), protocolFeeRecipient);
+        uint256 withdrawn = oracle.getProtocolFees(address(token1));
         assertEq(withdrawn, 0, "Should return 0 when no fees accrued");
     }
 
     function testGetETHProtocolFeesWithZeroBalance() public {
         // Test withdrawing ETH when no fees have accrued
         vm.prank(protocolFeeRecipient);
-        uint256 withdrawn = oracle.getETHProtocolFees(protocolFeeRecipient);
+        uint256 withdrawn = oracle.getETHProtocolFees();
         assertEq(withdrawn, 0, "Should return 0 when no ETH fees accrued");
     }
 
@@ -249,14 +249,14 @@ contract OpenOracleTest is Test {
         vm.prank(alice);
         oracle.disputeAndSwap(reportId, address(token1), 1.1e18, 2100e18, 2000e18, stateHash);
 
-        // Try to withdraw as non-recipient (should get 0)
+        // Try to withdraw as non-recipient (should get 0 since alice has no accrued fees)
         vm.prank(alice);
-        uint256 withdrawn = oracle.getProtocolFees(address(token1), alice);
+        uint256 withdrawn = oracle.getProtocolFees(address(token1));
         assertEq(withdrawn, 0, "Non-recipient should not be able to withdraw fees");
 
-        // Verify recipient can withdraw
+        // Verify recipient can withdraw their fees
         vm.prank(protocolFeeRecipient);
-        uint256 recipientWithdrawn = oracle.getProtocolFees(address(token1), protocolFeeRecipient);
+        uint256 recipientWithdrawn = oracle.getProtocolFees(address(token1));
         assertGt(recipientWithdrawn, 0, "Recipient should be able to withdraw fees");
     }
 }
