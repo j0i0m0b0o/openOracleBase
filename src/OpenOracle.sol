@@ -184,8 +184,6 @@ contract OpenOracle is ReentrancyGuard {
 
     event ReportSettled(uint256 indexed reportId, uint256 price, uint256 settlementTimestamp, uint256 blockTimestamp);
 
-    event ProtocolFeeRecipientUpdated(address indexed oldRecipient, address indexed newRecipient);
-
     event SettlementCallbackExecuted(uint256 indexed reportId, address indexed callbackContract, bool success);
 
     constructor() ReentrancyGuard() {
