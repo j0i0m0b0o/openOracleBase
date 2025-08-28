@@ -144,7 +144,7 @@ contract SwapFacilityTest is Test {
         token1.approve(address(oracle), 100e18);
         token2.approve(address(oracle), 100e18);
 
-        (bytes32 stateHash,,,,,,) = oracle.extraData(1);
+        (bytes32 stateHash,,,,,,,) = oracle.extraData(1);
         oracle.disputeAndSwap(1, address(token1), newAmount1, newAmount2, amount2, stateHash);
 
         vm.stopPrank();
@@ -206,7 +206,7 @@ contract SwapFacilityTest is Test {
         token1.approve(address(oracle), 100e18);
         token2.approve(address(oracle), 100e18);
 
-        (bytes32 stateHash,,,,,,) = oracle.extraData(1);
+        (bytes32 stateHash,,,,,,,) = oracle.extraData(1);
         oracle.disputeAndSwap(1, address(token1), newAmount1, newAmount2, amount2, stateHash);
 
         vm.stopPrank();

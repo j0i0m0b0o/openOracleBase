@@ -196,24 +196,23 @@ contract OpenOracle is ReentrancyGuard {
      * @notice Withdraws accumulated protocol fees for a specific token
      * @param tokenToGet The token address to withdraw fees for
      */
-    function getProtocolFees(address tokenToGet, address protocolFeeRecipient) external nonReentrant returns (uint) {
-        if (msg.sender != protocolFeeRecipient) revert InvalidInput("protocolFeeRecipient");
-
+    function getProtocolFees(address tokenToGet) external nonReentrant returns (uint) {
         uint256 amount = protocolFees[msg.sender][tokenToGet];
         if (amount > 0) {
             protocolFees[msg.sender][tokenToGet] = 0;
-            _transferTokens(tokenToGet, address(this), payable(protocolFeeRecipient), amount);
+            _transferTokens(tokenToGet, address(this), msg.sender, amount);
             return amount;
         }
     }
 
-    function getETHProtocolFees(address protocolFeeRecipient) external nonReentrant returns (uint) {
-        if (msg.sender != protocolFeeRecipient) revert InvalidInput("protocolFeeRecipient");
-
+    /**
+     * @notice Withdraws accumulated protocol fees in ETH
+     */ 
+    function getETHProtocolFees() external nonReentrant returns (uint) {
         uint256 amount = accruedProtocolFees[msg.sender];
         if (amount > 0) {
             accruedProtocolFees[msg.sender] = 0;
-            (bool success,) = protocolFeeRecipient.call{value: amount}("");
+            (bool success,) = payable(msg.sender).call{value: amount}("");
             if (!success) revert EthTransferFailed();
             return amount;
         }
