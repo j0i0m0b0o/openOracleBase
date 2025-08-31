@@ -2,7 +2,6 @@
 pragma solidity ^0.8.26;
 
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
@@ -15,7 +14,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
  * @custom:version 0.1.6
  * @custom:documentation https://openprices.gitbook.io/openoracle-docs
  */
-contract OpenOracle is ReentrancyGuard, Ownable {
+contract OpenOracle is ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     // Custom errors for gas optimization
@@ -38,17 +37,14 @@ contract OpenOracle is ReentrancyGuard, Ownable {
     uint256 public constant MULTIPLIER_PRECISION = 100;
     uint256 public constant SETTLEMENT_WINDOW = 60; // 60 seconds for testing
     uint256 public constant SETTLEMENT_WINDOW_BLOCKS = 1350; // 5 minutes @ 4.5 blocks per second on Arbitrum
-    uint256 internal constant ARBITRUM_CHAIN_ID = 0xa4b1;
-    address internal constant ARB_SYS_ADDRESS = 0x0000000000000000000000000000000000000064;
 
     // State variables
     uint256 public nextReportId = 1;
-    uint256 public accruedProtocolFees;
-    address public protocolFeeRecipient;
 
     mapping(uint256 => ReportMeta) public reportMeta;
     mapping(uint256 => ReportStatus) public reportStatus;
-    mapping(address => uint256) public protocolFees;
+    mapping(address => mapping(address => uint256)) public protocolFees;
+    mapping(address => uint256) public accruedProtocolFees;
     mapping(uint256 => extraReportData) public extraData;
     mapping(uint256 => mapping(uint256 => disputeRecord)) public disputeHistory;
 
@@ -65,6 +61,7 @@ contract OpenOracle is ReentrancyGuard, Ownable {
         uint32 numReports;
         uint32 callbackGasLimit;
         bytes4 callbackSelector;
+        address protocolFeeRecipient;
         bool trackDisputes;
         bool keepFee;
     }
@@ -115,6 +112,7 @@ contract OpenOracle is ReentrancyGuard, Ownable {
         bool keepFee;
         address callbackContract;
         bytes4 callbackSelector;
+        address protocolFeeRecipient;
     }
 
     // Events
@@ -186,43 +184,35 @@ contract OpenOracle is ReentrancyGuard, Ownable {
 
     event ReportSettled(uint256 indexed reportId, uint256 price, uint256 settlementTimestamp, uint256 blockTimestamp);
 
-    event ProtocolFeeRecipientUpdated(address indexed oldRecipient, address indexed newRecipient);
-
     event SettlementCallbackExecuted(uint256 indexed reportId, address indexed callbackContract, bool success);
 
-    constructor() ReentrancyGuard() Ownable(msg.sender) {
-        protocolFeeRecipient = 0x043c740dB5d907aa7604c2E8E9E0fffF435fa0e4;
-    }
+    constructor() ReentrancyGuard() {
 
-    /**
-     * @notice Updates the protocol fee recipient address
-     * @param newRecipient The new protocol fee recipient address
-     */
-    function updateProtocolFeeRecipient(address newRecipient) external onlyOwner {
-        if (newRecipient == address(0)) revert InvalidInput("recipient address");
-        address oldRecipient = protocolFeeRecipient;
-        protocolFeeRecipient = newRecipient;
-        emit ProtocolFeeRecipientUpdated(oldRecipient, newRecipient);
     }
 
     /**
      * @notice Withdraws accumulated protocol fees for a specific token
      * @param tokenToGet The token address to withdraw fees for
      */
-    function getProtocolFees(address tokenToGet) external nonReentrant {
-        uint256 amount = protocolFees[tokenToGet];
+    function getProtocolFees(address tokenToGet) external nonReentrant returns (uint) {
+        uint256 amount = protocolFees[msg.sender][tokenToGet];
         if (amount > 0) {
-            protocolFees[tokenToGet] = 0;
-            _transferTokens(tokenToGet, address(this), payable(protocolFeeRecipient), amount);
+            protocolFees[msg.sender][tokenToGet] = 0;
+            _transferTokens(tokenToGet, address(this), msg.sender, amount);
+            return amount;
         }
     }
 
-    function getETHProtocolFees() external nonReentrant {
-        uint256 amount = accruedProtocolFees;
+    /**
+     * @notice Withdraws accumulated protocol fees in ETH
+     */ 
+    function getETHProtocolFees() external nonReentrant returns (uint) {
+        uint256 amount = accruedProtocolFees[msg.sender];
         if (amount > 0) {
-            accruedProtocolFees = 0;
-            (bool success,) = protocolFeeRecipient.call{value: amount}("");
+            accruedProtocolFees[msg.sender] = 0;
+            (bool success,) = payable(msg.sender).call{value: amount}("");
             if (!success) revert EthTransferFailed();
+            return amount;
         }
     }
 
@@ -285,7 +275,7 @@ contract OpenOracle is ReentrancyGuard, Ownable {
             if (extraData[reportId].keepFee) {
                 _sendEth(status.initialReporter, reporterReward);
             } else {
-                accruedProtocolFees += reporterReward;
+                accruedProtocolFees[extra.protocolFeeRecipient] += reporterReward;
             }
         } else {
             _sendEth(status.initialReporter, reporterReward);
@@ -350,7 +340,8 @@ contract OpenOracle is ReentrancyGuard, Ownable {
             callbackSelector: bytes4(0),
             trackDisputes: false,
             callbackGasLimit: 0,
-            keepFee: false
+            keepFee: false,
+            protocolFeeRecipient: msg.sender
         });
         return _createReportInstance(params);
     }
@@ -390,6 +381,7 @@ contract OpenOracle is ReentrancyGuard, Ownable {
         extra.trackDisputes = params.trackDisputes;
         extra.callbackGasLimit = params.callbackGasLimit;
         extra.keepFee = params.keepFee;
+        extra.protocolFeeRecipient = params.protocolFeeRecipient;
 
         bytes32 stateHash = keccak256(
             abi.encodePacked(
@@ -549,7 +541,6 @@ contract OpenOracle is ReentrancyGuard, Ownable {
         _disputeAndSwap(reportId, tokenToSwap, newAmount1, newAmount2, msg.sender, amt2Expected, stateHash);
     }
 
-    //new function. disputer address receives the money back, so you can call dispute with your own tokens through insurance smart contracts or other smart contracts if necessary.
     function disputeAndSwap(
         uint256 reportId,
         address tokenToSwap,
@@ -593,10 +584,11 @@ contract OpenOracle is ReentrancyGuard, Ownable {
         if (stateHash != extraData[reportId].stateHash) revert InvalidStateHash("state hash");
         if (disputer == address(0)) revert InvalidInput("disputer address");
 
+        address protocolFeeRecipient = extraData[reportId].protocolFeeRecipient;
         if (tokenToSwap == meta.token1) {
-            _handleToken1Swap(meta, status, newAmount2, disputer);
+            _handleToken1Swap(meta, status, newAmount2, disputer, protocolFeeRecipient);
         } else if (tokenToSwap == meta.token2) {
-            _handleToken2Swap(meta, status, newAmount2);
+            _handleToken2Swap(meta, status, newAmount2, protocolFeeRecipient);
         } else {
             revert InvalidInput("token to swap");
         }
@@ -710,18 +702,13 @@ contract OpenOracle is ReentrancyGuard, Ownable {
     /**
      * @dev Handles token swaps when token1 is being swapped during a dispute
      */
-    function _handleToken1Swap(
-        ReportMeta storage meta,
-        ReportStatus storage status,
-        uint256 newAmount2,
-        address disputer
-    ) internal {
+    function _handleToken1Swap(ReportMeta storage meta, ReportStatus storage status, uint256 newAmount2, address disputer, address protocolFeeRecipient) internal {
         uint256 oldAmount1 = status.currentAmount1;
         uint256 oldAmount2 = status.currentAmount2;
         uint256 fee = (oldAmount1 * meta.feePercentage) / PERCENTAGE_PRECISION;
         uint256 protocolFee = (oldAmount1 * meta.protocolFee) / PERCENTAGE_PRECISION;
 
-        protocolFees[meta.token1] += protocolFee;
+        protocolFees[protocolFeeRecipient][meta.token1] += protocolFee;
 
         uint256 requiredToken1Contribution =
             meta.escalationHalt > oldAmount1 ? (oldAmount1 * meta.multiplier) / MULTIPLIER_PRECISION : oldAmount1 + 1;
@@ -746,13 +733,13 @@ contract OpenOracle is ReentrancyGuard, Ownable {
     /**
      * @dev Handles token swaps when token2 is being swapped during a dispute
      */
-    function _handleToken2Swap(ReportMeta storage meta, ReportStatus storage status, uint256 newAmount2) internal {
+    function _handleToken2Swap(ReportMeta storage meta, ReportStatus storage status, uint256 newAmount2, address protocolFeeRecipient) internal {
         uint256 oldAmount1 = status.currentAmount1;
         uint256 oldAmount2 = status.currentAmount2;
         uint256 fee = (oldAmount2 * meta.feePercentage) / PERCENTAGE_PRECISION;
         uint256 protocolFee = (oldAmount2 * meta.protocolFee) / PERCENTAGE_PRECISION;
 
-        protocolFees[meta.token2] += protocolFee;
+        protocolFees[protocolFeeRecipient][meta.token2] += protocolFee;
 
         uint256 requiredToken1Contribution =
             meta.escalationHalt > oldAmount1 ? (oldAmount1 * meta.multiplier) / MULTIPLIER_PRECISION : oldAmount1 + 1;
@@ -803,12 +790,6 @@ contract OpenOracle is ReentrancyGuard, Ownable {
         uint256 id;
         assembly {
             id := chainid()
-        }
-
-        if (id == ARBITRUM_CHAIN_ID) {
-            (bool success, bytes memory data) = ARB_SYS_ADDRESS.staticcall(abi.encodeWithSignature("arbBlockNumber()"));
-            if (!success) revert CallToArbSysFailed();
-            return uint48(abi.decode(data, (uint256)));
         }
 
         return uint48(block.number);
