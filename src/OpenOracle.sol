@@ -689,7 +689,7 @@ contract OpenOracle is ReentrancyGuard {
 
         uint256 oldAmount1 = status.currentAmount1;
         uint256 oldPrice = (oldAmount1 * PRICE_PRECISION) / status.currentAmount2;
-        uint256 feeBoundary = (oldPrice * meta.feePercentage) / PERCENTAGE_PRECISION;
+        uint256 feeBoundary = (oldPrice * (meta.feePercentage + meta.protocolFee)) / PERCENTAGE_PRECISION;
         uint256 lowerBoundary = oldPrice > feeBoundary ? oldPrice - feeBoundary : 0;
         uint256 upperBoundary = oldPrice + feeBoundary;
         uint256 newPrice = (newAmount1 * PRICE_PRECISION) / newAmount2;
@@ -705,16 +705,16 @@ contract OpenOracle is ReentrancyGuard {
     function _handleToken1Swap(ReportMeta storage meta, ReportStatus storage status, uint256 newAmount2, address disputer, address protocolFeeRecipient) internal {
         uint256 oldAmount1 = status.currentAmount1;
         uint256 oldAmount2 = status.currentAmount2;
-        uint256 fee = (oldAmount1 * meta.feePercentage) / PERCENTAGE_PRECISION;
-        uint256 protocolFee = (oldAmount1 * meta.protocolFee) / PERCENTAGE_PRECISION;
+        uint256 fee = (oldAmount2 * meta.feePercentage) / PERCENTAGE_PRECISION;
+        uint256 protocolFee = (oldAmount2 * meta.protocolFee) / PERCENTAGE_PRECISION;
 
-        protocolFees[protocolFeeRecipient][meta.token1] += protocolFee;
+        protocolFees[protocolFeeRecipient][meta.token2] += protocolFee;
 
         uint256 requiredToken1Contribution =
             meta.escalationHalt > oldAmount1 ? (oldAmount1 * meta.multiplier) / MULTIPLIER_PRECISION : oldAmount1 + 1;
 
-        uint256 netToken2Contribution = newAmount2 >= oldAmount2 ? newAmount2 - oldAmount2 : 0;
-        uint256 netToken2Receive = newAmount2 < oldAmount2 ? oldAmount2 - newAmount2 : 0;
+        uint256 netToken2Contribution = newAmount2 + protocolFee + fee >= oldAmount2 ? newAmount2 + protocolFee + fee - oldAmount2 : 0;
+        uint256 netToken2Receive = newAmount2 + protocolFee + fee < oldAmount2 ? oldAmount2 - newAmount2 - protocolFee - fee : 0;
 
         if (netToken2Contribution > 0) {
             IERC20(meta.token2).safeTransferFrom(msg.sender, address(this), netToken2Contribution);
@@ -725,9 +725,12 @@ contract OpenOracle is ReentrancyGuard {
         }
 
         IERC20(meta.token1).safeTransferFrom(
-            msg.sender, address(this), requiredToken1Contribution + oldAmount1 + fee + protocolFee
+            msg.sender, address(this), requiredToken1Contribution + oldAmount1
         );
-        IERC20(meta.token1).safeTransfer(status.currentReporter, 2 * oldAmount1 + fee);
+
+        IERC20(meta.token1).safeTransfer(status.currentReporter, 2 * oldAmount1);
+        IERC20(meta.token2).safeTransfer(status.currentReporter, fee);
+
     }
 
     /**
@@ -736,14 +739,15 @@ contract OpenOracle is ReentrancyGuard {
     function _handleToken2Swap(ReportMeta storage meta, ReportStatus storage status, uint256 newAmount2, address protocolFeeRecipient) internal {
         uint256 oldAmount1 = status.currentAmount1;
         uint256 oldAmount2 = status.currentAmount2;
-        uint256 fee = (oldAmount2 * meta.feePercentage) / PERCENTAGE_PRECISION;
-        uint256 protocolFee = (oldAmount2 * meta.protocolFee) / PERCENTAGE_PRECISION;
+        uint256 fee = (oldAmount1 * meta.feePercentage) / PERCENTAGE_PRECISION;
+        uint256 protocolFee = (oldAmount1 * meta.protocolFee) / PERCENTAGE_PRECISION;
 
-        protocolFees[protocolFeeRecipient][meta.token2] += protocolFee;
+        protocolFees[protocolFeeRecipient][meta.token1] += protocolFee;
 
         uint256 requiredToken1Contribution =
             meta.escalationHalt > oldAmount1 ? (oldAmount1 * meta.multiplier) / MULTIPLIER_PRECISION : oldAmount1 + 1;
 
+        requiredToken1Contribution += fee + protocolFee;
         uint256 netToken1Contribution =
             requiredToken1Contribution > (oldAmount1) ? requiredToken1Contribution - (oldAmount1) : 0;
 
@@ -751,8 +755,10 @@ contract OpenOracle is ReentrancyGuard {
             IERC20(meta.token1).safeTransferFrom(msg.sender, address(this), netToken1Contribution);
         }
 
-        IERC20(meta.token2).safeTransferFrom(msg.sender, address(this), newAmount2 + oldAmount2 + fee + protocolFee);
-        IERC20(meta.token2).safeTransfer(status.currentReporter, 2 * oldAmount2 + fee);
+        IERC20(meta.token2).safeTransferFrom(msg.sender, address(this), newAmount2 + oldAmount2);
+        IERC20(meta.token2).safeTransfer(status.currentReporter, 2 * oldAmount2);
+
+        IERC20(meta.token1).safeTransfer(status.currentReporter, fee);
     }
 
     /**
