@@ -96,7 +96,7 @@ contract OpenOracle is ReentrancyGuard {
         bool isDistributed;
     }
 
-    //initial reporter reward is paid to the initial reporter if keepFee == true, and is msg.value - settlerReward
+    //initial reporter reward is paid to the initial reporter and is msg.value - settlerReward
     struct CreateReportParams {
         uint256 exactToken1Report; // initial oracle liquidity in token1
         uint256 escalationHalt; // amount of token1 past which escalation stops but disputes can still happen
@@ -111,7 +111,7 @@ contract OpenOracle is ReentrancyGuard {
         uint16 multiplier; // amount by which newAmount1 must increase versus old amount1. 140 = 1.4x
         bool timeType; // true for block timestamp, false for block number
         bool trackDisputes; // true keeps a readable dispute history for smart contracts
-        bool keepFee; // true means initial reporter keeps the initial reporter reward. if false, it goes to protocolFeeRecipient
+        bool keepFee; // true means initial reporter keeps the initial reporter reward if disputed. if false, it goes to protocolFeeRecipient if disputed
         address callbackContract; // contract address for settle to call back into
         bytes4 callbackSelector; // method in the callbackContract you want called.
         address protocolFeeRecipient; // address that receives protocol fees and initial reporter rewards if keepFee set to false
