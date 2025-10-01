@@ -159,9 +159,7 @@ contract OpenOracle is ReentrancyGuard {
         bool trackDisputes,
         uint256 callbackGasLimit,
         bytes32 stateHash,
-        uint256 blockTimestamp,
-        uint256 multiplier,
-        uint256 settlerReward
+        uint256 blockTimestamp
     );
 
     event ReportDisputed(
@@ -182,9 +180,7 @@ contract OpenOracle is ReentrancyGuard {
         bool trackDisputes,
         uint256 callbackGasLimit,
         bytes32 stateHash,
-        uint256 blockTimestamp,
-        uint256 multiplier,
-        uint256 settlerReward
+        uint256 blockTimestamp
     );
 
     event ReportSettled(uint256 indexed reportId, uint256 price, uint256 settlementTimestamp, uint256 blockTimestamp);
@@ -530,9 +526,7 @@ contract OpenOracle is ReentrancyGuard {
             extra.trackDisputes,
             extra.callbackGasLimit,
             stateHash,
-            block.timestamp,
-            meta.multiplier,
-            meta.settlerReward
+            block.timestamp
         );
     }
 
@@ -637,9 +631,7 @@ contract OpenOracle is ReentrancyGuard {
             extraData[reportId].trackDisputes,
             extraData[reportId].callbackGasLimit,
             stateHash,
-            block.timestamp,
-            meta.multiplier,
-            meta.settlerReward
+            block.timestamp
         );
     }
 
