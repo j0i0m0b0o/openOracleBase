@@ -81,12 +81,13 @@ contract OpenOracleTest is Test {
                 trackDisputes: false,
                 callbackGasLimit: uint32(0),
                 keepFee: false,
-                protocolFeeRecipient: protocolFeeRecipient
+                protocolFeeRecipient: protocolFeeRecipient,
+                feeToken: true
             })
         );
 
         // Get state hash
-        (bytes32 stateHash,,,,,,,) = oracle.extraData(reportId);
+        (bytes32 stateHash,,,,,,,,) = oracle.extraData(reportId);
 
         // Submit initial report
         vm.prank(bob);
@@ -151,12 +152,13 @@ contract OpenOracleTest is Test {
                 trackDisputes: false,
                 callbackGasLimit: uint32(0),
                 keepFee: false, // Important: keepFee must be false for ETH protocol fees
-                protocolFeeRecipient: protocolFeeRecipient
+                protocolFeeRecipient: protocolFeeRecipient,
+                feeToken: true
             })
         );
 
         // Get state hash
-        (bytes32 stateHash,,,,,,,) = oracle.extraData(reportId);
+        (bytes32 stateHash,,,,,,,,) = oracle.extraData(reportId);
 
         // Submit initial report
         vm.prank(bob);
@@ -235,11 +237,12 @@ contract OpenOracleTest is Test {
                 trackDisputes: false,
                 callbackGasLimit: uint32(0),
                 keepFee: false,
-                protocolFeeRecipient: protocolFeeRecipient
+                protocolFeeRecipient: protocolFeeRecipient,
+                feeToken: true
             })
         );
 
-        (bytes32 stateHash,,,,,,,) = oracle.extraData(reportId);
+        (bytes32 stateHash,,,,,,,,) = oracle.extraData(reportId);
 
         vm.prank(bob);
         oracle.submitInitialReport(reportId, 1e18, 2000e18, stateHash);

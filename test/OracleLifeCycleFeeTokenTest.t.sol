@@ -11,7 +11,7 @@ contract MockERC20 is ERC20 {
     }
 }
 
-contract GasOptimizationLifecycleTest is Test {
+contract OracleLifeCycleFeeTokenTest is Test {
     OpenOracle oracle;
     MockERC20 token1;
     MockERC20 token2;
@@ -58,7 +58,7 @@ contract GasOptimizationLifecycleTest is Test {
         token2.approve(address(oracle), type(uint256).max);
     }
 
-    function testOracleLifecycle() public {
+    function testOracleLifecycleFeeTokenFalse() public {
         // Track initial balances
         uint256 aliceToken1Before = token1.balanceOf(alice);
         uint256 aliceToken2Before = token2.balanceOf(alice);
@@ -90,7 +90,7 @@ contract GasOptimizationLifecycleTest is Test {
                 callbackGasLimit: uint32(0),
                 keepFee: false,
                 protocolFeeRecipient: address(0),
-                feeToken: true
+                feeToken: false
             })
         );
 
@@ -131,24 +131,26 @@ contract GasOptimizationLifecycleTest is Test {
             stateHash
         );
 
-        // Calculate fees
-        uint256 fee = (1e18 * 3000) / 1e7; // 0.003e18
-        uint256 protocolFee = (1e18 * 1000) / 1e7; // 0.001e18
+        // Calculate fees (when feeToken = false and swapping token1, fees are in token2)
+        uint256 fee = (2000e18 * 3000) / 1e7; // 0.6e18 token2
+        uint256 protocolFee = (2000e18 * 1000) / 1e7; // 0.2e18 token2
 
         // Check dispute effects:
-        // Alice paid: 1e18 + fee + protocolFee (for swap) + 1.1e18 (new contribution)
-        uint256 aliceToken1Spent = 1e18 + fee + protocolFee + 1.1e18;
+        // Alice paid: 1.1e18 (new contribution) + 1e18 (old amount) in token1
+        uint256 aliceToken1Spent = 1.1e18 + 1e18;
         assertEq(token1.balanceOf(alice), aliceToken1BeforeDispute - aliceToken1Spent, "Alice token1 after dispute");
 
-        // Alice contributed 100e18 token2 (to make up difference from 2000 to 2100)
-        assertEq(token2.balanceOf(alice), aliceToken2BeforeDispute - 100e18, "Alice should have sent 100 token2");
+        // Alice contributed: newAmount2 + fee + protocolFee - oldAmount2 = 2100e18 + 0.6e18 + 0.2e18 - 2000e18 = 100.8e18 token2
+        uint256 aliceToken2Spent = 2100e18 + fee + protocolFee - 2000e18;
+        assertEq(token2.balanceOf(alice), aliceToken2BeforeDispute - aliceToken2Spent, "Alice should have sent correct token2");
 
-        // Bob (initial reporter) received: 2*1e18 + fee token1
-        assertEq(token1.balanceOf(bob), bobToken1BeforeDispute + 2e18 + fee, "Bob should receive refund + fee");
+        // Bob (initial reporter) received: 2*1e18 token1 (no fee) and fee in token2
+        assertEq(token1.balanceOf(bob), bobToken1BeforeDispute + 2e18, "Bob should receive refund in token1");
+        assertEq(token2.balanceOf(bob), bobToken2BeforeDispute + fee, "Bob should receive fee in token2");
 
-        // Oracle balances after dispute: 1.1e18 token1, 2100e18 token2
-        assertEq(token1.balanceOf(address(oracle)), 1.1e18 + protocolFee, "Oracle token1 after dispute");
-        assertEq(token2.balanceOf(address(oracle)), 2100e18, "Oracle token2 after dispute");
+        // Oracle balances after dispute: 1.1e18 token1, 2100e18 token2 + protocolFee
+        assertEq(token1.balanceOf(address(oracle)), 1.1e18, "Oracle token1 after dispute");
+        assertEq(token2.balanceOf(address(oracle)), 2100e18 + protocolFee, "Oracle token2 after dispute plus protocol fee");
 
         // Wait for settlement
         vm.warp(block.timestamp + 300);
@@ -169,9 +171,9 @@ contract GasOptimizationLifecycleTest is Test {
         assertEq(token1.balanceOf(alice), aliceToken1BeforeSettle + 1.1e18, "Alice should get back 1.1 token1");
         assertEq(token2.balanceOf(alice), aliceToken2BeforeSettle + 2100e18, "Alice should get back 2100 token2");
 
-        // Oracle should have no tokens left (except protocol fees)
-        assertEq(token1.balanceOf(address(oracle)), protocolFee, "Oracle should only have protocol fee");
-        assertEq(token2.balanceOf(address(oracle)), 0, "Oracle should have no token2");
+        // Oracle should have no tokens left (except protocol fees in token2)
+        assertEq(token1.balanceOf(address(oracle)), 0, "Oracle should have no token1");
+        assertEq(token2.balanceOf(address(oracle)), protocolFee, "Oracle should only have protocol fee in token2");
 
         // Verify settlement data
         assertGt(price, 0, "Price should be set");

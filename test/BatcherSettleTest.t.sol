@@ -71,14 +71,15 @@ contract OracleStateHashBatcherSettleTest is Test {
                 trackDisputes: false,
                 callbackGasLimit: 0,
                 keepFee: false,
-                protocolFeeRecipient: address(0)
+                protocolFeeRecipient: address(0),
+                feeToken: true
             })
         );
 
         console.log("Created report ID:", reportId);
 
         // 2. Get stateHash
-        (bytes32 stateHash,,,,,,,) = oracle.extraData(reportId);
+        (bytes32 stateHash,,,,,,,,) = oracle.extraData(reportId);
         console.log("StateHash obtained");
 
         // 3. Submit initial report
