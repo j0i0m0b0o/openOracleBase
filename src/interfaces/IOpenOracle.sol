@@ -18,6 +18,7 @@ interface IOpenOracle {
         address protocolFeeRecipient;
         bool trackDisputes;
         bool keepFee;
+        bool feeToken;
     }
 
     struct ReportMeta {
@@ -66,6 +67,7 @@ interface IOpenOracle {
         address callbackContract;
         bytes4 callbackSelector;
         address protocolFeeRecipient;
+        bool feeToken;
     }
 
     function createReportInstance(CreateReportParams calldata params) external payable returns (uint256 reportId);
