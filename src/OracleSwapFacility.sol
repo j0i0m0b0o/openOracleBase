@@ -142,7 +142,8 @@ contract OracleSwapFacility is ReentrancyGuard {
             keepFee: keepFee,
             callbackContract: callbackContract,
             callbackSelector: callbackSelector,
-            protocolFeeRecipient: address(0)
+            protocolFeeRecipient: address(0),
+            feeToken: true
         });
 
         /* ------------ create report instance ------------ */
