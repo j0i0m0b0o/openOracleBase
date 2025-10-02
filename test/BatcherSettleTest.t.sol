@@ -14,7 +14,7 @@ contract MockERC20 is ERC20 {
 
 contract OracleStateHashBatcherSettleTest is Test {
     OpenOracle oracle;
-    OpenOracleBatcher batcher;
+    openOracleBatcher batcher;
     MockERC20 token1;
     MockERC20 token2;
 
@@ -23,7 +23,7 @@ contract OracleStateHashBatcherSettleTest is Test {
 
     function setUp() public {
         oracle = new OpenOracle();
-        batcher = new OpenOracleBatcher(address(oracle));
+        batcher = new openOracleBatcher(address(oracle));
         token1 = new MockERC20("Token1", "TK1");
         token2 = new MockERC20("Token2", "TK2");
 
@@ -105,7 +105,7 @@ contract OracleStateHashBatcherSettleTest is Test {
         vm.warp(block.timestamp + 300);
 
         // Create settle data
-        OpenOracleBatcher.SettleData[] memory settles = new OpenOracleBatcher.SettleData[](1);
+        openOracleBatcher.SettleData[] memory settles = new openOracleBatcher.SettleData[](1);
         settles[0].reportId = reportId;
 
         // Check ETH balances before

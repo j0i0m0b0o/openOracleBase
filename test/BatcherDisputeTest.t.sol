@@ -14,7 +14,7 @@ contract MockERC20 is ERC20 {
 
 contract OracleStateHashBatcherDisputeTest is Test {
     OpenOracle oracle;
-    OpenOracleBatcher batcher;
+    openOracleBatcher batcher;
     MockERC20 token1;
     MockERC20 token2;
 
@@ -23,7 +23,7 @@ contract OracleStateHashBatcherDisputeTest is Test {
 
     function setUp() public {
         oracle = new OpenOracle();
-        batcher = new OpenOracleBatcher(address(oracle));
+        batcher = new openOracleBatcher(address(oracle));
         token1 = new MockERC20("Token1", "TK1");
         token2 = new MockERC20("Token2", "TK2");
 
@@ -97,7 +97,7 @@ contract OracleStateHashBatcherDisputeTest is Test {
         vm.warp(block.timestamp + 6);
 
         // Create dispute data for batcher
-        OpenOracleBatcher.DisputeData[] memory disputes = new OpenOracleBatcher.DisputeData[](1);
+        openOracleBatcher.DisputeData[] memory disputes = new openOracleBatcher.DisputeData[](1);
         disputes[0].reportId = reportId;
         disputes[0].tokenToSwap = address(token1);
         disputes[0].newAmount1 = 1.1e18; // 1.1x multiplier

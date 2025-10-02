@@ -14,7 +14,7 @@ contract MockERC20 is ERC20 {
 
 contract OracleStateHashBatcherInitialReportTest is Test {
     OpenOracle oracle;
-    OpenOracleBatcher batcher;
+    openOracleBatcher batcher;
     MockERC20 token1;
     MockERC20 token2;
 
@@ -23,7 +23,7 @@ contract OracleStateHashBatcherInitialReportTest is Test {
 
     function setUp() public {
         oracle = new OpenOracle();
-        batcher = new OpenOracleBatcher(address(oracle));
+        batcher = new openOracleBatcher(address(oracle));
         token1 = new MockERC20("Token1", "TK1");
         token2 = new MockERC20("Token2", "TK2");
 
@@ -89,7 +89,7 @@ contract OracleStateHashBatcherInitialReportTest is Test {
         console.log("StateHash obtained");
 
         // 3. Submit initial report using batcher
-        OpenOracleBatcher.InitialReportData[] memory reports = new OpenOracleBatcher.InitialReportData[](1);
+        openOracleBatcher.InitialReportData[] memory reports = new openOracleBatcher.InitialReportData[](1);
         reports[0].reportId = reportId;
         reports[0].amount1 = 1e18;
         reports[0].amount2 = 2000e18;
