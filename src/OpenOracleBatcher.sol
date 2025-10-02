@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.26;
+pragma solidity 0.8.28;
 
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -7,10 +7,11 @@ import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IER
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IOpenOracle} from "./interfaces/IOpenOracle.sol";
 
-contract OpenOracleBatcher is ReentrancyGuard {
+contract openOracleBatcher is ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     error EthTransferFailed();
+    error ActionSafetyFailure(string);
 
     /* ─── immutables & constants ────────────────────────────── */
     IOpenOracle public immutable oracle;
@@ -28,10 +29,31 @@ contract OpenOracleBatcher is ReentrancyGuard {
         bytes32 stateHash;
     }
 
-    //note: the first function input "reports" must ALL BE THE SAME TOKEN PAIR. technically, you can do both WETH/USDC and USDC/WETH reports for token1/token2 combinations in one call.
+    function submitInitialReportsSafe(
+        InitialReportData[] calldata reports,
+        uint256 batchAmount1,
+        uint256 batchAmount2,
+        uint256 timestamp,
+        uint256 blockNumber,
+        uint256 timestampBound,
+        uint256 blockNumberBound
+    ) external nonReentrant {
+        if (block.timestamp > timestamp + timestampBound) revert ActionSafetyFailure("timestamp");
+        if (block.number > blockNumber + blockNumberBound) revert ActionSafetyFailure("block number");
+
+        _submitInitialReports(reports, batchAmount1, batchAmount2);
+    }
+
     function submitInitialReports(InitialReportData[] calldata reports, uint256 batchAmount1, uint256 batchAmount2)
         external
         nonReentrant
+    {
+        _submitInitialReports(reports, batchAmount1, batchAmount2);
+    }
+
+    //note: the first function input "reports" must ALL BE THE SAME TOKEN PAIR. technically, you can do both WETH/USDC and USDC/WETH reports for token1/token2 combinations in one call.
+    function _submitInitialReports(InitialReportData[] calldata reports, uint256 batchAmount1, uint256 batchAmount2)
+        internal
     {
         address sender = msg.sender;
         uint256 startBal1;
@@ -87,11 +109,30 @@ contract OpenOracleBatcher is ReentrancyGuard {
         bytes32 stateHash;
     }
 
-    //note: the first function input "disputes" must ALL BE THE SAME TOKEN PAIR. technically, you can do both WETH/USDC and USDC/WETH reports for token1/token2 combinations in one call.
     function disputeReports(DisputeData[] calldata disputes, uint256 batchAmount1, uint256 batchAmount2)
         external
         nonReentrant
     {
+        _disputeReports(disputes, batchAmount1, batchAmount2);
+    }
+
+    //safe dispute functions are designed to mitigate replay attacks. pass in the block.timestamp and block.number you see at the time of dispute into timestamp and blockNumber respectively.
+    function disputeReportsSafe(
+        DisputeData[] calldata disputes,
+        uint256 batchAmount1,
+        uint256 batchAmount2,
+        uint256 timestamp,
+        uint256 blockNumber,
+        uint256 timestampBound,
+        uint256 blockNumberBound
+    ) external nonReentrant {
+        if (block.timestamp > timestamp + timestampBound) revert ActionSafetyFailure("timestamp");
+        if (block.number > blockNumber + blockNumberBound) revert ActionSafetyFailure("block number");
+        _disputeReports(disputes, batchAmount1, batchAmount2);
+    }
+
+    //note: the first function input "disputes" must ALL BE THE SAME TOKEN PAIR. technically, you can do both WETH/USDC and USDC/WETH reports for token1/token2 combinations in one call.
+    function _disputeReports(DisputeData[] calldata disputes, uint256 batchAmount1, uint256 batchAmount2) internal {
         address sender = msg.sender;
         uint256 startBal1;
         uint256 startBal2;
@@ -168,7 +209,15 @@ contract OpenOracleBatcher is ReentrancyGuard {
         if (!ok) revert EthTransferFailed();
     }
 
-    function safeSettleReports(SafeSettleData[] calldata settles) external nonReentrant {
+    function safeSettleReports(
+        SafeSettleData[] calldata settles,
+        uint256 timestamp,
+        uint256 blockNumber,
+        uint256 timestampBound,
+        uint256 blockNumberBound
+    ) external nonReentrant {
+        if (block.timestamp > timestamp + timestampBound) revert ActionSafetyFailure("timestamp");
+        if (block.number > blockNumber + blockNumberBound) revert ActionSafetyFailure("block number");
         uint256 balanceBefore = address(this).balance;
         for (uint256 i = 0; i < settles.length; i++) {
             SafeSettleData memory settle = settles[i];
