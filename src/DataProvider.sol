@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity 0.8.28;
 
 import {IOpenOracle} from "./interfaces/IOpenOracle.sol";
 
-contract OpenOracleDataProviderV3 {
+contract openOracleDataProviderV3 {
     /* ─── immutables & constants ────────────────────────────── */
     IOpenOracle public immutable oracle;
 
@@ -48,15 +48,16 @@ contract OpenOracleDataProviderV3 {
         bytes4 callbackSelector;
         bool trackDisputes;
         bool keepFee;
+        bool feeToken;
     }
 
-    function getData(uint256 reportId) external view returns (botStruct[] memory) {
+    function getData(uint256 reportId) external view returns (botStruct[] memory){
         botStruct[] memory data = new botStruct[](1);
-        for (uint256 i = reportId; i < reportId + 1; i++) {
+        for (uint256 i = reportId; i < reportId+1; i++) {
             IOpenOracle.ReportMeta memory _reportMeta = oracle.reportMeta(i);
             IOpenOracle.ReportStatus memory _reportStatus = oracle.reportStatus(i);
             IOpenOracle.extraReportData memory _reportExtra = oracle.extraData(i);
-
+            
             data[0] = botStruct(
                 i,
                 _reportMeta.exactToken1Report,
@@ -70,7 +71,8 @@ contract OpenOracleDataProviderV3 {
                 _reportMeta.feePercentage,
                 _reportMeta.protocolFee,
                 _reportMeta.multiplier,
-                _reportMeta.disputeDelay,
+                _reportMeta.disputeDelay, 
+
                 _reportStatus.currentAmount1,
                 _reportStatus.currentAmount2,
                 _reportStatus.price,
@@ -81,25 +83,27 @@ contract OpenOracleDataProviderV3 {
                 _reportStatus.lastReportOppoTime,
                 _reportStatus.disputeOccurred,
                 _reportStatus.isDistributed,
+
                 _reportExtra.stateHash,
                 _reportExtra.callbackContract,
                 _reportExtra.numReports,
                 _reportExtra.callbackGasLimit,
                 _reportExtra.callbackSelector,
                 _reportExtra.trackDisputes,
-                _reportExtra.keepFee
-            );
-        }
+                _reportExtra.keepFee,
+                _reportExtra.feeToken
+                );
+            }
         return data;
     }
 
-    function getData(uint256 startId, uint256 endId) external view returns (botStruct[] memory) {
+    function getData(uint256 startId, uint256 endId) external view returns (botStruct[] memory){
         botStruct[] memory data = new botStruct[](endId - startId);
         for (uint256 i = 0; i < (endId - startId); i++) {
             IOpenOracle.ReportMeta memory _reportMeta = oracle.reportMeta(startId + i);
             IOpenOracle.ReportStatus memory _reportStatus = oracle.reportStatus(startId + i);
             IOpenOracle.extraReportData memory _reportExtra = oracle.extraData(startId + i);
-
+            
             data[i] = botStruct(
                 startId + i,
                 _reportMeta.exactToken1Report,
@@ -113,7 +117,8 @@ contract OpenOracleDataProviderV3 {
                 _reportMeta.feePercentage,
                 _reportMeta.protocolFee,
                 _reportMeta.multiplier,
-                _reportMeta.disputeDelay,
+                _reportMeta.disputeDelay, 
+
                 _reportStatus.currentAmount1,
                 _reportStatus.currentAmount2,
                 _reportStatus.price,
@@ -124,15 +129,18 @@ contract OpenOracleDataProviderV3 {
                 _reportStatus.lastReportOppoTime,
                 _reportStatus.disputeOccurred,
                 _reportStatus.isDistributed,
+
                 _reportExtra.stateHash,
                 _reportExtra.callbackContract,
                 _reportExtra.numReports,
                 _reportExtra.callbackGasLimit,
                 _reportExtra.callbackSelector,
                 _reportExtra.trackDisputes,
-                _reportExtra.keepFee
-            );
-        }
+                _reportExtra.keepFee,
+                _reportExtra.feeToken
+                );
+            }
         return data;
     }
+
 }
