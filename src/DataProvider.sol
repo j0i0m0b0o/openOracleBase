@@ -50,15 +50,13 @@ contract openOracleDataProviderV3 {
         bool keepFee;
     }
 
-
-
-    function getData(uint256 reportId) external view returns (botStruct[] memory){
+    function getData(uint256 reportId) external view returns (botStruct[] memory) {
         botStruct[] memory data = new botStruct[](1);
-        for (uint256 i = reportId; i < reportId+1; i++) {
+        for (uint256 i = reportId; i < reportId + 1; i++) {
             IOpenOracle.ReportMeta memory _reportMeta = oracle.reportMeta(i);
             IOpenOracle.ReportStatus memory _reportStatus = oracle.reportStatus(i);
             IOpenOracle.extraReportData memory _reportExtra = oracle.extraData(i);
-            
+
             data[0] = botStruct(
                 i,
                 _reportMeta.exactToken1Report,
@@ -72,8 +70,7 @@ contract openOracleDataProviderV3 {
                 _reportMeta.feePercentage,
                 _reportMeta.protocolFee,
                 _reportMeta.multiplier,
-                _reportMeta.disputeDelay, 
-
+                _reportMeta.disputeDelay,
                 _reportStatus.currentAmount1,
                 _reportStatus.currentAmount2,
                 _reportStatus.price,
@@ -84,7 +81,6 @@ contract openOracleDataProviderV3 {
                 _reportStatus.lastReportOppoTime,
                 _reportStatus.disputeOccurred,
                 _reportStatus.isDistributed,
-
                 _reportExtra.stateHash,
                 _reportExtra.callbackContract,
                 _reportExtra.numReports,
@@ -92,18 +88,18 @@ contract openOracleDataProviderV3 {
                 _reportExtra.callbackSelector,
                 _reportExtra.trackDisputes,
                 _reportExtra.keepFee
-                );
-            }
+            );
+        }
         return data;
     }
 
-    function getData(uint256 startId, uint256 endId) external view returns (botStruct[] memory){
+    function getData(uint256 startId, uint256 endId) external view returns (botStruct[] memory) {
         botStruct[] memory data = new botStruct[](endId - startId);
         for (uint256 i = 0; i < (endId - startId); i++) {
             IOpenOracle.ReportMeta memory _reportMeta = oracle.reportMeta(startId + i);
             IOpenOracle.ReportStatus memory _reportStatus = oracle.reportStatus(startId + i);
             IOpenOracle.extraReportData memory _reportExtra = oracle.extraData(startId + i);
-            
+
             data[i] = botStruct(
                 startId + i,
                 _reportMeta.exactToken1Report,
@@ -117,8 +113,7 @@ contract openOracleDataProviderV3 {
                 _reportMeta.feePercentage,
                 _reportMeta.protocolFee,
                 _reportMeta.multiplier,
-                _reportMeta.disputeDelay, 
-
+                _reportMeta.disputeDelay,
                 _reportStatus.currentAmount1,
                 _reportStatus.currentAmount2,
                 _reportStatus.price,
@@ -129,7 +124,6 @@ contract openOracleDataProviderV3 {
                 _reportStatus.lastReportOppoTime,
                 _reportStatus.disputeOccurred,
                 _reportStatus.isDistributed,
-
                 _reportExtra.stateHash,
                 _reportExtra.callbackContract,
                 _reportExtra.numReports,
@@ -137,9 +131,8 @@ contract openOracleDataProviderV3 {
                 _reportExtra.callbackSelector,
                 _reportExtra.trackDisputes,
                 _reportExtra.keepFee
-                );
-            }
+            );
+        }
         return data;
     }
-
 }
