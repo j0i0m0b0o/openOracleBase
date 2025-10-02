@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.26;
+pragma solidity 0.8.28;
 
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -96,23 +96,23 @@ contract OpenOracle is ReentrancyGuard {
     }
 
     struct CreateReportParams {
-        uint256 exactToken1Report;
-        uint256 escalationHalt;
-        uint256 settlerReward;
-        address token1Address;
-        uint48 settlementTime;
-        uint24 disputeDelay;
-        uint24 protocolFee;
-        address token2Address;
-        uint32 callbackGasLimit;
-        uint24 feePercentage;
-        uint16 multiplier;
-        bool timeType;
-        bool trackDisputes;
-        bool keepFee;
-        address callbackContract;
-        bytes4 callbackSelector;
-        address protocolFeeRecipient;
+        uint256 exactToken1Report; // initial oracle liquidity in token1
+        uint256 escalationHalt; // amount of token1 past which escalation stops but disputes can still happen
+        uint256 settlerReward; // eth paid to settler in wei
+        address token1Address; // address of token1 in the oracle report instance
+        uint48 settlementTime; // report instance can settle if no disputes within this timeframe
+        uint24 disputeDelay; // time disputes must wait after every new report
+        uint24 protocolFee; // fee paid to protocolFeeRecipient. 1000 = 0.01%
+        address token2Address; // address of token2 in the oracle report instance
+        uint32 callbackGasLimit; // gas the settlement callback must use
+        uint24 feePercentage; // fee paid to previous reporter. 1000 = 0.01%
+        uint16 multiplier; // amount by which newAmount1 must increase versus old amount1. 140 = 1.4x
+        bool timeType; // true for block timestamp, false for block number
+        bool trackDisputes; // true keeps a readable dispute history for smart contracts
+        bool keepFee; // true means initial reporter keeps the initial reporter reward if disputed. if false, it goes to protocolFeeRecipient if disputed
+        address callbackContract; // contract address for settle to call back into
+        bytes4 callbackSelector; // method in the callbackContract you want called.
+        address protocolFeeRecipient; // address that receives protocol fees and initial reporter rewards if keepFee set to false
     }
 
     // Events
@@ -186,15 +186,13 @@ contract OpenOracle is ReentrancyGuard {
 
     event SettlementCallbackExecuted(uint256 indexed reportId, address indexed callbackContract, bool success);
 
-    constructor() ReentrancyGuard() {
-
-    }
+    constructor() ReentrancyGuard() {}
 
     /**
      * @notice Withdraws accumulated protocol fees for a specific token
      * @param tokenToGet The token address to withdraw fees for
      */
-    function getProtocolFees(address tokenToGet) external nonReentrant returns (uint) {
+    function getProtocolFees(address tokenToGet) external nonReentrant returns (uint256) {
         uint256 amount = protocolFees[msg.sender][tokenToGet];
         if (amount > 0) {
             protocolFees[msg.sender][tokenToGet] = 0;
@@ -205,8 +203,8 @@ contract OpenOracle is ReentrancyGuard {
 
     /**
      * @notice Withdraws accumulated protocol fees in ETH
-     */ 
-    function getETHProtocolFees() external nonReentrant returns (uint) {
+     */
+    function getETHProtocolFees() external nonReentrant returns (uint256) {
         uint256 amount = accruedProtocolFees[msg.sender];
         if (amount > 0) {
             accruedProtocolFees[msg.sender] = 0;
@@ -340,14 +338,12 @@ contract OpenOracle is ReentrancyGuard {
             callbackSelector: bytes4(0),
             trackDisputes: false,
             callbackGasLimit: 0,
-            keepFee: false,
+            keepFee: true,
             protocolFeeRecipient: msg.sender
         });
         return _createReportInstance(params);
     }
 
-    //new function. full control over timeType. true = seconds, false = blocks
-    // not backwards compatible to previous createReportInstance (different function argument order!!)
     function createReportInstance(CreateReportParams calldata params) external payable returns (uint256 reportId) {
         return _createReportInstance(params);
     }
@@ -358,6 +354,8 @@ contract OpenOracle is ReentrancyGuard {
         if (params.token1Address == params.token2Address) revert TokensCannotBeSame();
         if (params.settlementTime < params.disputeDelay) revert InvalidTiming("settlement vs dispute delay");
         if (msg.value <= params.settlerReward) revert InsufficientAmount("settler reward fee");
+        if (params.feePercentage == 0) revert InvalidInput("feePercentage 0");
+        if (params.feePercentage + params.protocolFee > 1e7) revert InvalidInput("sum of fees");
 
         reportId = nextReportId++;
 
@@ -689,8 +687,9 @@ contract OpenOracle is ReentrancyGuard {
 
         uint256 oldAmount1 = status.currentAmount1;
         uint256 oldPrice = (oldAmount1 * PRICE_PRECISION) / status.currentAmount2;
-        uint256 feeBoundary = (oldPrice * meta.feePercentage) / PERCENTAGE_PRECISION;
-        uint256 lowerBoundary = oldPrice > feeBoundary ? oldPrice - feeBoundary : 0;
+        uint256 feeSum = uint256(meta.feePercentage) + uint256(meta.protocolFee);
+        uint256 feeBoundary = (oldPrice * feeSum) / PERCENTAGE_PRECISION;
+        uint256 lowerBoundary = (oldPrice * PERCENTAGE_PRECISION) / (PERCENTAGE_PRECISION + feeSum);
         uint256 upperBoundary = oldPrice + feeBoundary;
         uint256 newPrice = (newAmount1 * PRICE_PRECISION) / newAmount2;
 
@@ -702,7 +701,13 @@ contract OpenOracle is ReentrancyGuard {
     /**
      * @dev Handles token swaps when token1 is being swapped during a dispute
      */
-    function _handleToken1Swap(ReportMeta storage meta, ReportStatus storage status, uint256 newAmount2, address disputer, address protocolFeeRecipient) internal {
+    function _handleToken1Swap(
+        ReportMeta storage meta,
+        ReportStatus storage status,
+        uint256 newAmount2,
+        address disputer,
+        address protocolFeeRecipient
+    ) internal {
         uint256 oldAmount1 = status.currentAmount1;
         uint256 oldAmount2 = status.currentAmount2;
         uint256 fee = (oldAmount1 * meta.feePercentage) / PERCENTAGE_PRECISION;
@@ -733,7 +738,12 @@ contract OpenOracle is ReentrancyGuard {
     /**
      * @dev Handles token swaps when token2 is being swapped during a dispute
      */
-    function _handleToken2Swap(ReportMeta storage meta, ReportStatus storage status, uint256 newAmount2, address protocolFeeRecipient) internal {
+    function _handleToken2Swap(
+        ReportMeta storage meta,
+        ReportStatus storage status,
+        uint256 newAmount2,
+        address protocolFeeRecipient
+    ) internal {
         uint256 oldAmount1 = status.currentAmount1;
         uint256 oldAmount2 = status.currentAmount2;
         uint256 fee = (oldAmount2 * meta.feePercentage) / PERCENTAGE_PRECISION;
