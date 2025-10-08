@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity 0.8.28;
 
 import {IOpenOracle} from "./interfaces/IOpenOracle.sol";
 
-contract OpenOracleDataProviderV3 {
+contract openOracleDataProviderV3 {
     /* ─── immutables & constants ────────────────────────────── */
     IOpenOracle public immutable oracle;
 
