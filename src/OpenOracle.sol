@@ -9,7 +9,10 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
  * @title OpenOracle
  * @notice A trust-free price oracle that uses an escalating auction mechanism
  * @dev This contract enables price discovery through economic incentives where
- *      expiration serves as evidence of a good price with appropriate parameters
+ *      expiration serves as evidence of a good price with appropriate parameters.
+ *      Participants are responsible for validating report instance parameters before participation
+ *      and unsafe parameter sets including but not limited to settlementTime too high and callbackGasLimit too high
+ *      will result in lost funds.
  * @author OpenOracle Team
  * @custom:version 0.1.6
  * @custom:documentation https://openprices.gitbook.io/openoracle-docs
@@ -100,11 +103,11 @@ contract OpenOracle is ReentrancyGuard {
         uint256 escalationHalt; // amount of token1 past which escalation stops but disputes can still happen
         uint256 settlerReward; // eth paid to settler in wei
         address token1Address; // address of token1 in the oracle report instance
-        uint48 settlementTime; // report instance can settle if no disputes within this timeframe
+        uint48 settlementTime; // report instance can settle if no disputes within this timeframe. Maximum time a reporter must wait to get funds back.
         uint24 disputeDelay; // time disputes must wait after every new report
         uint24 protocolFee; // fee paid to protocolFeeRecipient. 1000 = 0.01%
         address token2Address; // address of token2 in the oracle report instance
-        uint32 callbackGasLimit; // gas the settlement callback must use
+        uint32 callbackGasLimit; // gas the settlement callback must use. must be < block gas limit or funds will be stuck as settles revert.
         uint24 feePercentage; // fee paid to previous reporter. 1000 = 0.01%
         uint16 multiplier; // amount by which newAmount1 must increase versus old amount1. 140 = 1.4x
         bool timeType; // true for block timestamp, false for block number
@@ -218,7 +221,7 @@ contract OpenOracle is ReentrancyGuard {
      * @notice Settles a report after the settlement time has elapsed
      * @param reportId The unique identifier for the report to settle
      * @return price The final settled price
-     * @return settlementTimestamp The timestamp when the report was settled
+     * @return settlementTimestamp The time when the report was settled (respects timeType)
      */
     function settle(uint256 reportId) external nonReentrant returns (uint256 price, uint256 settlementTimestamp) {
         ReportStatus storage status = reportStatus[reportId];
@@ -297,10 +300,10 @@ contract OpenOracle is ReentrancyGuard {
     }
 
     /**
-     * @notice Creates a new report instance for price discovery. Backwards-compatible (timeType true)
+     * @notice Creates a new report instance for price discovery. Hard-codes certain oracle parameters.
      * @param token1Address Address of the first token
      * @param token2Address Address of the second token
-     * @param exactToken1Report Exact amount of token1 required for reports
+     * @param exactToken1Report Exact amount of token1 required for the initial report
      * @param feePercentage Fee in thousandths of basis points (3000 = 3bps)
      * @param multiplier Multiplier in percentage points (110 = 1.1x)
      * @param settlementTime Time in seconds before report can be settled
@@ -308,7 +311,7 @@ contract OpenOracle is ReentrancyGuard {
      * @param disputeDelay Delay in seconds before disputes are allowed
      * @param protocolFee Protocol fee in thousandths of basis points
      * @param settlerReward Reward for settling the report in wei
-     * @return reportId The unique identifier for the created report
+     * @return reportId The unique identifier for the created report instance
      */
     function createReportInstance(
         address token1Address,
@@ -344,6 +347,29 @@ contract OpenOracle is ReentrancyGuard {
         return _createReportInstance(params);
     }
 
+  /**
+   * @notice Creates a new report instance for price discovery.
+   * @param params Report creation parameters:
+   *   - token1Address: Address of the first token
+   *   - token2Address: Address of the second token
+   *   - exactToken1Report: Exact amount of token1 required for the initial report.
+   *   - feePercentage: Fee in thousandths of basis points (3000 = 0.03%)
+   *   - multiplier: Dispute amount1 multiplier in percentage points (110 = 1.1x). newAmount1 = oldAmount1 * multipier / 100
+   *   - settlementTime: Time before report can be settled
+   *   - escalationHalt: Threshold above which multiplier disappears and newAmount1 = oldAmount1 + 1
+   *   - disputeDelay: Delay in time before disputes are allowed
+   *   - protocolFee: Protocol fee in thousandths of basis points (3000 = 0.03%)
+   *   - settlerReward: Reward for settling the report in wei
+   *   - timeType: If true: time in seconds, if false: blocks
+   *   - callbackContract: Settle calls back into this address
+   *   - callbackSelector: Settle callback uses this method
+   *   - trackDisputes: Optional dispute tracking for smart contracts
+   *   - callbackGasLimit: How much gas the callback must use. Must be < block gas limit or funds will be stuck
+   *   - keepFee: If true: initial reporter gets reward even if disputed. If false: they don't if disputed
+   *   - protocolFeeRecipient: Address that receives accrued protocol fees & initial reporter reward if keepFee false
+   * @dev Initial reporter reward is msg.value in wei minus settlerReward
+   * @return reportId The unique identifier for the created report instance
+   */
     function createReportInstance(CreateReportParams calldata params) external payable returns (uint256 reportId) {
         return _createReportInstance(params);
     }
@@ -432,22 +458,22 @@ contract OpenOracle is ReentrancyGuard {
     }
 
     /**
-     * @notice Submits the initial price report for a given report ID
+     * @notice Submits the initial price report for a given report ID. Amounts use smallest unit for a given ERC-20.
      * @param reportId The unique identifier for the report
      * @param amount1 Amount of token1 (must equal exactToken1Report)
-     * @param amount2 Amount of token2 for the price ratio
-     * @dev Tokens are pulled from msg.sender and will be returned to msg.sender when settled
+     * @param amount2 Choose the amount of token2 that equals amount1 in value
+     * @dev Tokens are pulled from msg.sender and will be returned to msg.sender when settled or disputed
      */
     function submitInitialReport(uint256 reportId, uint256 amount1, uint256 amount2, bytes32 stateHash) external {
         _submitInitialReport(reportId, amount1, amount2, stateHash, msg.sender);
     }
 
     /**
-     * @notice Submits the initial price report with a custom reporter address
+     * @notice Submits the initial price report with a custom reporter address. Amounts use smallest unit for a given ERC-20.
      * @param reportId The unique identifier for the report
      * @param amount1 Amount of token1 (must equal exactToken1Report)
-     * @param amount2 Amount of token2 for the price ratio
-     * @param reporter The address that will receive tokens back when settled
+     * @param amount2 Choose the amount of token2 that equals amount1 in value
+     * @param reporter The address that will receive tokens back when settled or disputed
      * @dev Tokens are pulled from msg.sender but will be returned to reporter address
      * @dev This overload enables contracts to submit reports on behalf of users
      */
@@ -461,13 +487,6 @@ contract OpenOracle is ReentrancyGuard {
         _submitInitialReport(reportId, amount1, amount2, stateHash, reporter);
     }
 
-    /**
-     * @notice Submits the initial price report for a given report ID
-     * @param reportId The unique identifier for the report
-     * @param amount1 Amount of token1 (must equal exactToken1Report)
-     * @param amount2 Amount of token2 for the price ratio
-     * @param reporter The address that will receive tokens back when settled
-     */
     function _submitInitialReport(
         uint256 reportId,
         uint256 amount1,
@@ -527,7 +546,16 @@ contract OpenOracle is ReentrancyGuard {
         );
     }
 
-    //backwards-compatible function
+    /**
+     * @notice Disputes an existing report. Amounts use smallest unit for a given ERC-20.
+     * @param reportId The unique identifier for the report instance to dispute
+     * @param tokenToSwap Token being swapped (token1 or token2). Disputer should choose token whose amount is lower valued
+     * @param newAmount1 New amount of token1 after the dispute. Must respect contract escalation rules
+     * @param newAmount2 New amount of token2 after the dispute. Choose the amount of token2 that equals newAmount1 in value
+     * @param amt2Expected currentAmount2 of the report instance you are disputing (not newAmount2)
+     * @param stateHash state hash of the report instance you are disputing
+     * @dev Tokens are pulled from msg.sender and will be returned to msg.sender when settled or disputed
+     */
     function disputeAndSwap(
         uint256 reportId,
         address tokenToSwap,
@@ -539,6 +567,18 @@ contract OpenOracle is ReentrancyGuard {
         _disputeAndSwap(reportId, tokenToSwap, newAmount1, newAmount2, msg.sender, amt2Expected, stateHash);
     }
 
+    /**
+     * @notice Disputes an existing report with a custom disputer address. Amounts use smallest unit for a given ERC-20.
+     * @param reportId The unique identifier for the report instance to dispute
+     * @param tokenToSwap Token being swapped (token1 or token2). Disputer should choose token whose amount is lower valued
+     * @param newAmount1 New amount of token1 after the dispute. Must respect contract escalation rules
+     * @param newAmount2 New amount of token2 after the dispute. Choose the amount of token2 that equals newAmount1 in value
+     * @param disputer The address that will receive tokens back when settled or disputed
+     * @param amt2Expected currentAmount2 of the report instance you are disputing (not newAmount2)
+     * @param stateHash state hash of the report instance you are disputing
+     * @dev Tokens are pulled from msg.sender but will be returned to disputer address
+     * @dev This overload enables contracts to submit disputes on behalf of users
+     */
     function disputeAndSwap(
         uint256 reportId,
         address tokenToSwap,
@@ -551,13 +591,6 @@ contract OpenOracle is ReentrancyGuard {
         _disputeAndSwap(reportId, tokenToSwap, newAmount1, newAmount2, disputer, amt2Expected, stateHash);
     }
 
-    /**
-     * @notice Disputes an existing report and swaps tokens to update the price
-     * @param reportId The unique identifier for the report to dispute
-     * @param tokenToSwap The token being swapped (token1 or token2)
-     * @param newAmount1 New amount of token1 after the dispute
-     * @param newAmount2 New amount of token2 after the dispute
-     */
     function _disputeAndSwap(
         uint256 reportId,
         address tokenToSwap,
@@ -653,7 +686,7 @@ contract OpenOracle is ReentrancyGuard {
     }
 
     /**
-     * @dev Validates that a dispute is valid according to the oracle rules
+     * @dev Validates a dispute is valid according to the oracle rules
      */
     function _validateDispute(
         uint256 reportId,
