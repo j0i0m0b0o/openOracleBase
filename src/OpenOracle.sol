@@ -113,6 +113,7 @@ contract OpenOracle is ReentrancyGuard {
         address callbackContract; // contract address for settle to call back into
         bytes4 callbackSelector; // method in the callbackContract you want called.
         address protocolFeeRecipient; // address that receives protocol fees and initial reporter rewards if keepFee set to false
+        uint256 alternativeEscalation; //initial reporter can submit amount1 up to this value
     }
 
     // Events
@@ -339,7 +340,8 @@ contract OpenOracle is ReentrancyGuard {
             trackDisputes: false,
             callbackGasLimit: 0,
             keepFee: true,
-            protocolFeeRecipient: msg.sender
+            protocolFeeRecipient: msg.sender,
+            alternativeEscalation: 0
         });
         return _createReportInstance(params);
     }
