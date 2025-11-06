@@ -389,6 +389,7 @@ contract OpenOracle is ReentrancyGuard {
         if (params.feePercentage == 0) revert InvalidInput("feePercentage 0");
         if (params.feePercentage + params.protocolFee > 1e7) revert InvalidInput("sum of fees");
         if (params.alternativeEscalation > params.escalationHalt) revert InvalidInput("altEsc > escHalt");
+        if (params.alternativeEscalation < params.exactToken1Report) revert InvalidInput("altEsc < exactTkn1Amt");
         if (params.multiplier < MULTIPLIER_PRECISION) revert InvalidInput("multiplier < 100");
 
         reportId = nextReportId++;
@@ -513,7 +514,9 @@ contract OpenOracle is ReentrancyGuard {
         extraReportData storage extra = extraData[reportId];
 
         if (reportId >= nextReportId) revert InvalidInput("report id");
-        if (amount1 != meta.exactToken1Report) revert InvalidInput("token1 amount");
+        if (amount1 != meta.exactToken1Report && extra.alternativeEscalation == 0) revert InvalidInput("token1 amount");
+        if ((amount1 < meta.exactToken1Report || amount1 > extra.alternativeEscalation) && extra.alternativeEscalation > 0) revert InvalidInput("token1 amount altEsc");
+        if (amount1 == 0) revert InvalidInput("token1 amount");
         if (amount2 == 0) revert InvalidInput("token2 amount");
         if (extra.stateHash != stateHash) revert InvalidStateHash("state hash");
         if (reporter == address(0)) revert InvalidInput("reporter address");
