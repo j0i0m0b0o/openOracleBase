@@ -116,6 +116,8 @@ contract OpenOracle is ReentrancyGuard {
         address callbackContract; // contract address for settle to call back into
         bytes4 callbackSelector; // method in the callbackContract you want called.
         address protocolFeeRecipient; // address that receives protocol fees and initial reporter rewards if keepFee set to false
+        bool forwardBurnStart; // if true, iff newAmount1 > alternativeEscalation, protocol fee applies. if false, protocol fee always applies
+        uint256 alternativeEscalation; //allows dispute network to take advantage of delay attacker's willingness to pay swap fees. can escalate up to this amount.
     }
 
     // Events
