@@ -68,6 +68,7 @@ contract OpenOracle is ReentrancyGuard {
         address protocolFeeRecipient;
         bool trackDisputes;
         bool keepFee;
+        bool forwardBurn;
     }
 
     // Type declarations
@@ -118,6 +119,7 @@ contract OpenOracle is ReentrancyGuard {
         bytes4 callbackSelector; // method in the callbackContract you want called.
         address protocolFeeRecipient; // address that receives protocol fees and initial reporter rewards if keepFee set to false
         uint256 alternativeEscalation; //allows dispute network to take advantage of delay attacker's willingness to pay swap fees
+        bool forwardBurn; //if true, iff newAmount1 > alternativeEscalation, protocol fee applies. if false, protocol fee always applies
     }
 
     // Events
@@ -345,7 +347,8 @@ contract OpenOracle is ReentrancyGuard {
             callbackGasLimit: 0,
             keepFee: true,
             protocolFeeRecipient: msg.sender,
-            alternativeEscalation: 0
+            alternativeEscalation: 0,
+            forwardBurn: false
         });
         return _createReportInstance(params);
     }
@@ -411,6 +414,7 @@ contract OpenOracle is ReentrancyGuard {
         extra.keepFee = params.keepFee;
         extra.protocolFeeRecipient = params.protocolFeeRecipient;
         extra.alternativeEscalation = params.alternativeEscalation;
+        extra.forwardBurn = params.forwardBurn;
 
         bytes32 stateHash = keccak256(
             abi.encodePacked(
@@ -428,6 +432,8 @@ contract OpenOracle is ReentrancyGuard {
                 keccak256(abi.encodePacked(params.trackDisputes)),
                 keccak256(abi.encodePacked(params.multiplier)),
                 keccak256(abi.encodePacked(params.escalationHalt)),
+                keccak256(abi.encodePacked(params.alternativeEscalation)),
+                keccak256(abi.encodePacked(params.forwardBurn)),
                 keccak256(abi.encodePacked(msg.sender)),
                 keccak256(abi.encodePacked(_getBlockNumber())),
                 keccak256(abi.encodePacked(uint48(block.timestamp)))
@@ -674,9 +680,9 @@ contract OpenOracle is ReentrancyGuard {
 
         address protocolFeeRecipient = extraData[reportId].protocolFeeRecipient;
         if (tokenToSwap == meta.token1) {
-            _handleToken1Swap(meta, status, newAmount2, disputer, protocolFeeRecipient, newAmount1);
+            _handleToken1Swap(meta, status, newAmount2, disputer, protocolFeeRecipient, newAmount1, extraData[reportId].forwardBurn, extraData[reportId].alternativeEscalation);
         } else if (tokenToSwap == meta.token2) {
-            _handleToken2Swap(meta, status, newAmount2, protocolFeeRecipient, newAmount1);
+            _handleToken2Swap(meta, status, newAmount2, protocolFeeRecipient, newAmount1, extraData[reportId].forwardBurn, extraData[reportId].alternativeEscalation);
         } else {
             revert InvalidInput("token to swap");
         }
@@ -807,13 +813,25 @@ contract OpenOracle is ReentrancyGuard {
         uint256 newAmount2,
         address disputer,
         address protocolFeeRecipient,
-        uint256 newAmount1
+        uint256 newAmount1,
+        bool forwardBurn,
+        uint256 alternativeEscalation
     ) internal {
         uint256 oldAmount1 = status.currentAmount1;
         uint256 oldAmount2 = status.currentAmount2;
         uint256 fee = (oldAmount1 * meta.feePercentage) / PERCENTAGE_PRECISION;
-        uint256 protocolFee = (oldAmount1 * meta.protocolFee) / PERCENTAGE_PRECISION;
+        uint256 protocolFee;
 
+        if (forwardBurn){
+            if (newAmount1 > alternativeEscalation){
+                protocolFee = (oldAmount1 * meta.protocolFee) / PERCENTAGE_PRECISION;
+            } else {
+                protocolFee = 0;
+            }
+        } else {
+            protocolFee = (oldAmount1 * meta.protocolFee) / PERCENTAGE_PRECISION;
+        }
+        
         protocolFees[protocolFeeRecipient][meta.token1] += protocolFee;
 
         uint256 requiredToken1Contribution = newAmount1;
@@ -843,12 +861,24 @@ contract OpenOracle is ReentrancyGuard {
         ReportStatus storage status,
         uint256 newAmount2,
         address protocolFeeRecipient,
-        uint256 newAmount1
+        uint256 newAmount1,
+        bool forwardBurn,
+        uint256 alternativeEscalation
     ) internal {
         uint256 oldAmount1 = status.currentAmount1;
         uint256 oldAmount2 = status.currentAmount2;
         uint256 fee = (oldAmount2 * meta.feePercentage) / PERCENTAGE_PRECISION;
-        uint256 protocolFee = (oldAmount2 * meta.protocolFee) / PERCENTAGE_PRECISION;
+        uint256 protocolFee;
+
+        if (forwardBurn) {
+            if (newAmount1 > alternativeEscalation){
+                protocolFee = (oldAmount2 * meta.protocolFee) / PERCENTAGE_PRECISION;
+            } else {
+                protocolFee = 0;
+            }
+        } else {
+            protocolFee = (oldAmount2 * meta.protocolFee) / PERCENTAGE_PRECISION;
+        }
 
         protocolFees[protocolFeeRecipient][meta.token2] += protocolFee;
 
