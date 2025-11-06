@@ -59,6 +59,7 @@ contract OpenOracle is ReentrancyGuard {
     }
 
     struct extraReportData {
+        uint256 alternativeEscalation;
         bytes32 stateHash;
         address callbackContract;
         uint32 numReports;
@@ -116,8 +117,7 @@ contract OpenOracle is ReentrancyGuard {
         address callbackContract; // contract address for settle to call back into
         bytes4 callbackSelector; // method in the callbackContract you want called.
         address protocolFeeRecipient; // address that receives protocol fees and initial reporter rewards if keepFee set to false
-        bool forwardBurn; // if true, iff newAmount1 > alternativeEscalation, protocol fee applies. if false, protocol fee always applies
-        uint256 alternativeEscalation; //allows dispute network to take advantage of delay attacker's willingness to pay swap fees. can escalate up to this amount.
+        uint256 alternativeEscalation; //allows dispute network to take advantage of delay attacker's willingness to pay swap fees
     }
 
     // Events
@@ -344,7 +344,8 @@ contract OpenOracle is ReentrancyGuard {
             trackDisputes: false,
             callbackGasLimit: 0,
             keepFee: true,
-            protocolFeeRecipient: msg.sender
+            protocolFeeRecipient: msg.sender,
+            alternativeEscalation: 0
         });
         return _createReportInstance(params);
     }
@@ -384,6 +385,7 @@ contract OpenOracle is ReentrancyGuard {
         if (msg.value <= params.settlerReward) revert InsufficientAmount("settler reward fee");
         if (params.feePercentage == 0) revert InvalidInput("feePercentage 0");
         if (params.feePercentage + params.protocolFee > 1e7) revert InvalidInput("sum of fees");
+        if (params.alternativeEscalation > params.escalationHalt) revert InvalidInput("altEsc > escHalt");
 
         reportId = nextReportId++;
 
@@ -408,6 +410,7 @@ contract OpenOracle is ReentrancyGuard {
         extra.callbackGasLimit = params.callbackGasLimit;
         extra.keepFee = params.keepFee;
         extra.protocolFeeRecipient = params.protocolFeeRecipient;
+        extra.alternativeEscalation = params.alternativeEscalation;
 
         bytes32 stateHash = keccak256(
             abi.encodePacked(
@@ -566,7 +569,30 @@ contract OpenOracle is ReentrancyGuard {
         uint256 amt2Expected,
         bytes32 stateHash
     ) external nonReentrant {
-        _disputeAndSwap(reportId, tokenToSwap, newAmount1, newAmount2, msg.sender, amt2Expected, stateHash);
+        _disputeAndSwap(reportId, tokenToSwap, newAmount1, newAmount2, msg.sender, 0, amt2Expected, stateHash);
+    }
+
+    /**
+     * @notice Disputes an existing report. Amounts use smallest unit for a given ERC-20. Used for alternativeEscalation > 0
+     * @param reportId The unique identifier for the report instance to dispute
+     * @param tokenToSwap Token being swapped (token1 or token2). Disputer should choose token whose amount is lower valued
+     * @param newAmount1 New amount of token1 after the dispute. Must respect contract escalation rules
+     * @param newAmount2 New amount of token2 after the dispute. Choose the amount of token2 that equals newAmount1 in value
+     * @param amt1Expected currentAmount1 of the report instance you are disputing (not newAmount1)
+     * @param amt2Expected currentAmount2 of the report instance you are disputing (not newAmount2)
+     * @param stateHash state hash of the report instance you are disputing
+     * @dev Tokens are pulled from msg.sender and will be returned to msg.sender when settled or disputed
+     */
+    function disputeAndSwap(
+        uint256 reportId,
+        address tokenToSwap,
+        uint256 newAmount1,
+        uint256 newAmount2,
+        uint256 amt1Expected,
+        uint256 amt2Expected,
+        bytes32 stateHash
+    ) external nonReentrant {
+        _disputeAndSwap(reportId, tokenToSwap, newAmount1, newAmount2, msg.sender, amt1Expected, amt2Expected, stateHash);
     }
 
     /**
@@ -590,7 +616,32 @@ contract OpenOracle is ReentrancyGuard {
         uint256 amt2Expected,
         bytes32 stateHash
     ) external nonReentrant {
-        _disputeAndSwap(reportId, tokenToSwap, newAmount1, newAmount2, disputer, amt2Expected, stateHash);
+        _disputeAndSwap(reportId, tokenToSwap, newAmount1, newAmount2, disputer, 0, amt2Expected, stateHash);
+    }
+
+    /**
+     * @notice Disputes an existing report with a custom disputer address. Amounts use smallest unit for a given ERC-20. Used for alternativeEscalation > 0.
+     * @param reportId The unique identifier for the report instance to dispute
+     * @param tokenToSwap Token being swapped (token1 or token2). Disputer should choose token whose amount is lower valued
+     * @param newAmount1 New amount of token1 after the dispute. Must respect contract escalation rules
+     * @param newAmount2 New amount of token2 after the dispute. Choose the amount of token2 that equals newAmount1 in value
+     * @param disputer The address that will receive tokens back when settled or disputed
+     * @param amt2Expected currentAmount2 of the report instance you are disputing (not newAmount2)
+     * @param stateHash state hash of the report instance you are disputing
+     * @dev Tokens are pulled from msg.sender but will be returned to disputer address
+     * @dev This overload enables contracts to submit disputes on behalf of users
+     */
+    function disputeAndSwap(
+        uint256 reportId,
+        address tokenToSwap,
+        uint256 newAmount1,
+        uint256 newAmount2,
+        address disputer,
+        uint256 amt1Expected,
+        uint256 amt2Expected,
+        bytes32 stateHash
+    ) external nonReentrant {
+        _disputeAndSwap(reportId, tokenToSwap, newAmount1, newAmount2, disputer, amt1Expected, amt2Expected, stateHash);
     }
 
     function _disputeAndSwap(
@@ -599,6 +650,7 @@ contract OpenOracle is ReentrancyGuard {
         uint256 newAmount1,
         uint256 newAmount2,
         address disputer,
+        uint256 amt1Expected,
         uint256 amt2Expected,
         bytes32 stateHash
     ) internal {
@@ -606,7 +658,8 @@ contract OpenOracle is ReentrancyGuard {
             newAmount1,
             reportStatus[reportId].currentAmount1,
             reportMeta[reportId].multiplier,
-            reportMeta[reportId].escalationHalt
+            reportMeta[reportId].escalationHalt,
+            extraData[reportId].alternativeEscalation
         );
 
         ReportMeta storage meta = reportMeta[reportId];
@@ -614,14 +667,16 @@ contract OpenOracle is ReentrancyGuard {
 
         _validateDispute(reportId, tokenToSwap, newAmount1, newAmount2, meta, status);
         if (status.currentAmount2 != amt2Expected) revert InvalidAmount2("amount2 doesn't match expectation");
+        if (extraData[reportId].alternativeEscalation > 0 && amt1Expected == 0) revert InvalidInput("expected amt1 not present");
+        if (extraData[reportId].alternativeEscalation > 0 && status.currentAmount1 != amt1Expected) revert InvalidInput("amount1 doesn't match expectation");
         if (stateHash != extraData[reportId].stateHash) revert InvalidStateHash("state hash");
         if (disputer == address(0)) revert InvalidInput("disputer address");
 
         address protocolFeeRecipient = extraData[reportId].protocolFeeRecipient;
         if (tokenToSwap == meta.token1) {
-            _handleToken1Swap(meta, status, newAmount2, disputer, protocolFeeRecipient);
+            _handleToken1Swap(meta, status, newAmount2, disputer, protocolFeeRecipient, newAmount1);
         } else if (tokenToSwap == meta.token2) {
-            _handleToken2Swap(meta, status, newAmount2, protocolFeeRecipient);
+            _handleToken2Swap(meta, status, newAmount2, protocolFeeRecipient, newAmount1);
         } else {
             revert InvalidInput("token to swap");
         }
@@ -666,7 +721,7 @@ contract OpenOracle is ReentrancyGuard {
         );
     }
 
-    function _preValidate(uint256 newAmount1, uint256 oldAmount1, uint256 multiplier, uint256 escalationHalt)
+    function _preValidate(uint256 newAmount1, uint256 oldAmount1, uint256 multiplier, uint256 escalationHalt, uint256 alternativeEscalation)
         internal
         pure
     {
@@ -674,8 +729,18 @@ contract OpenOracle is ReentrancyGuard {
 
         if (escalationHalt > oldAmount1) {
             expectedAmount1 = (oldAmount1 * multiplier) / MULTIPLIER_PRECISION;
+
+            if (expectedAmount1 > escalationHalt){
+                expectedAmount1 = escalationHalt;
+            }
+
         } else {
             expectedAmount1 = oldAmount1 + 1;
+        }
+
+        //alternativeEscalation <= escalationHalt from create report instance revert check 
+        if (alternativeEscalation > expectedAmount1 && newAmount1 <= alternativeEscalation && newAmount1 > expectedAmount1) {
+            expectedAmount1 = newAmount1;
         }
 
         if (newAmount1 != expectedAmount1) {
@@ -741,7 +806,8 @@ contract OpenOracle is ReentrancyGuard {
         ReportStatus storage status,
         uint256 newAmount2,
         address disputer,
-        address protocolFeeRecipient
+        address protocolFeeRecipient,
+        uint256 newAmount1
     ) internal {
         uint256 oldAmount1 = status.currentAmount1;
         uint256 oldAmount2 = status.currentAmount2;
@@ -750,8 +816,7 @@ contract OpenOracle is ReentrancyGuard {
 
         protocolFees[protocolFeeRecipient][meta.token1] += protocolFee;
 
-        uint256 requiredToken1Contribution =
-            meta.escalationHalt > oldAmount1 ? (oldAmount1 * meta.multiplier) / MULTIPLIER_PRECISION : oldAmount1 + 1;
+        uint256 requiredToken1Contribution = newAmount1;
 
         uint256 netToken2Contribution = newAmount2 >= oldAmount2 ? newAmount2 - oldAmount2 : 0;
         uint256 netToken2Receive = newAmount2 < oldAmount2 ? oldAmount2 - newAmount2 : 0;
@@ -777,7 +842,8 @@ contract OpenOracle is ReentrancyGuard {
         ReportMeta storage meta,
         ReportStatus storage status,
         uint256 newAmount2,
-        address protocolFeeRecipient
+        address protocolFeeRecipient,
+        uint256 newAmount1
     ) internal {
         uint256 oldAmount1 = status.currentAmount1;
         uint256 oldAmount2 = status.currentAmount2;
@@ -786,8 +852,7 @@ contract OpenOracle is ReentrancyGuard {
 
         protocolFees[protocolFeeRecipient][meta.token2] += protocolFee;
 
-        uint256 requiredToken1Contribution =
-            meta.escalationHalt > oldAmount1 ? (oldAmount1 * meta.multiplier) / MULTIPLIER_PRECISION : oldAmount1 + 1;
+        uint256 requiredToken1Contribution = newAmount1;
 
         uint256 netToken1Contribution =
             requiredToken1Contribution > (oldAmount1) ? requiredToken1Contribution - (oldAmount1) : 0;
