@@ -389,6 +389,7 @@ contract OpenOracle is ReentrancyGuard {
         if (params.feePercentage == 0) revert InvalidInput("feePercentage 0");
         if (params.feePercentage + params.protocolFee > 1e7) revert InvalidInput("sum of fees");
         if (params.alternativeEscalation > params.escalationHalt) revert InvalidInput("altEsc > escHalt");
+        if (params.multiplier < MULTIPLIER_PRECISION) revert InvalidInput("multiplier < 100");
 
         reportId = nextReportId++;
 
@@ -749,6 +750,11 @@ contract OpenOracle is ReentrancyGuard {
             expectedAmount1 = newAmount1;
         }
 
+        //allow disputes to alternativeEscalation if in range of multiplier
+        if (alternativeEscalation <= expectedAmount1 && newAmount1 == alternativeEscalation && newAmount1 > oldAmount1) {
+            expectedAmount1 = newAmount1;
+        }
+
         if (newAmount1 != expectedAmount1) {
             if (escalationHalt <= oldAmount1) {
                 revert OutOfBounds("escalation halted");
@@ -831,7 +837,7 @@ contract OpenOracle is ReentrancyGuard {
         } else {
             protocolFee = (oldAmount1 * meta.protocolFee) / PERCENTAGE_PRECISION;
         }
-        
+
         protocolFees[protocolFeeRecipient][meta.token1] += protocolFee;
 
         uint256 requiredToken1Contribution = newAmount1;
