@@ -95,7 +95,7 @@ contract OpenOracle is ReentrancyGuard {
 
     struct CreateReportParams {
         uint256 exactToken1Report; // initial oracle liquidity in token1
-        uint256 escalationHalt; // amount of token1 past which escalation stops but disputes can still happen
+        uint256 escalationHalt; // amount of token1 at which escalation stops but disputes can still happen
         uint256 settlerReward; // eth paid to settler in wei
         address token1Address; // address of token1 in the oracle report instance
         uint48 settlementTime; // report instance can settle if no disputes within this timeframe
@@ -306,7 +306,7 @@ contract OpenOracle is ReentrancyGuard {
      * @param feePercentage Fee in thousandths of basis points (3000 = 3bps)
      * @param multiplier Multiplier in percentage points (110 = 1.1x)
      * @param settlementTime Time in seconds before report can be settled
-     * @param escalationHalt Threshold where multiplier drops to 100
+     * @param escalationHalt Threshold at which multiplier drops to 100
      * @param disputeDelay Delay in seconds before disputes are allowed
      * @param protocolFee Protocol fee in thousandths of basis points
      * @param settlerReward Reward for settling the report in wei
