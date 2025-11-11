@@ -258,8 +258,12 @@ contract OpenOracle is ReentrancyGuard {
 
             // Execute callback with gas limit. Revert if not enough gas supplied to attempt callback fully.
             // Using low-level call to handle failures gracefully
-            if (gasleft() < ((64 * extra.callbackGasLimit + 62) / 63) + 100000) revert InvalidGasLimit();
+
             (bool success,) = extra.callbackContract.call{gas: extra.callbackGasLimit}(callbackData);
+            if (gasleft() <= extra.callbackGasLimit / 63) {
+                // consumes all gas limit left!
+                assembly { invalid() }
+            }
 
             // Emit event regardless of bool success
             emit SettlementCallbackExecuted(reportId, extra.callbackContract, success);
