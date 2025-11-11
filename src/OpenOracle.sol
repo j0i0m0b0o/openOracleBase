@@ -35,8 +35,6 @@ contract OpenOracle is ReentrancyGuard {
     uint256 public constant PRICE_PRECISION = 1e18;
     uint256 public constant PERCENTAGE_PRECISION = 1e7;
     uint256 public constant MULTIPLIER_PRECISION = 100;
-    uint256 public constant SETTLEMENT_WINDOW = 60; // 60 seconds for testing
-    uint256 public constant SETTLEMENT_WINDOW_BLOCKS = 1350; // 5 minutes @ 4.5 blocks per second on Arbitrum
 
     // State variables
     uint256 public nextReportId = 1;
@@ -260,8 +258,12 @@ contract OpenOracle is ReentrancyGuard {
 
             // Execute callback with gas limit. Revert if not enough gas supplied to attempt callback fully.
             // Using low-level call to handle failures gracefully
-            if (gasleft() < ((64 * extra.callbackGasLimit + 62) / 63) + 100000) revert InvalidGasLimit();
+
             (bool success,) = extra.callbackContract.call{gas: extra.callbackGasLimit}(callbackData);
+            if (gasleft() <= extra.callbackGasLimit / 63) {
+                // consumes all gas limit left!
+                assembly { invalid() }
+            }
 
             // Emit event regardless of bool success
             emit SettlementCallbackExecuted(reportId, extra.callbackContract, success);
@@ -356,6 +358,7 @@ contract OpenOracle is ReentrancyGuard {
         if (msg.value <= params.settlerReward) revert InsufficientAmount("settler reward fee");
         if (params.feePercentage == 0) revert InvalidInput("feePercentage 0");
         if (params.feePercentage + params.protocolFee > 1e7) revert InvalidInput("sum of fees");
+        if (params.multiplier < MULTIPLIER_PRECISION) revert InvalidInput("multiplier < 100");
 
         reportId = nextReportId++;
 
@@ -584,9 +587,9 @@ contract OpenOracle is ReentrancyGuard {
 
         address protocolFeeRecipient = extraData[reportId].protocolFeeRecipient;
         if (tokenToSwap == meta.token1) {
-            _handleToken1Swap(meta, status, newAmount2, disputer, protocolFeeRecipient);
+            _handleToken1Swap(meta, status, newAmount2, disputer, protocolFeeRecipient, newAmount1);
         } else if (tokenToSwap == meta.token2) {
-            _handleToken2Swap(meta, status, newAmount2, protocolFeeRecipient);
+            _handleToken2Swap(meta, status, newAmount2, protocolFeeRecipient, newAmount1);
         } else {
             revert InvalidInput("token to swap");
         }
@@ -639,6 +642,9 @@ contract OpenOracle is ReentrancyGuard {
 
         if (escalationHalt > oldAmount1) {
             expectedAmount1 = (oldAmount1 * multiplier) / MULTIPLIER_PRECISION;
+                if (expectedAmount1 > escalationHalt) {
+                    expectedAmount1 = escalationHalt;
+                }
         } else {
             expectedAmount1 = oldAmount1 + 1;
         }
@@ -706,7 +712,8 @@ contract OpenOracle is ReentrancyGuard {
         ReportStatus storage status,
         uint256 newAmount2,
         address disputer,
-        address protocolFeeRecipient
+        address protocolFeeRecipient,
+        uint256 newAmount1
     ) internal {
         uint256 oldAmount1 = status.currentAmount1;
         uint256 oldAmount2 = status.currentAmount2;
@@ -715,8 +722,7 @@ contract OpenOracle is ReentrancyGuard {
 
         protocolFees[protocolFeeRecipient][meta.token1] += protocolFee;
 
-        uint256 requiredToken1Contribution =
-            meta.escalationHalt > oldAmount1 ? (oldAmount1 * meta.multiplier) / MULTIPLIER_PRECISION : oldAmount1 + 1;
+        uint256 requiredToken1Contribution = newAmount1;
 
         uint256 netToken2Contribution = newAmount2 >= oldAmount2 ? newAmount2 - oldAmount2 : 0;
         uint256 netToken2Receive = newAmount2 < oldAmount2 ? oldAmount2 - newAmount2 : 0;
@@ -742,7 +748,8 @@ contract OpenOracle is ReentrancyGuard {
         ReportMeta storage meta,
         ReportStatus storage status,
         uint256 newAmount2,
-        address protocolFeeRecipient
+        address protocolFeeRecipient,
+        uint256 newAmount1
     ) internal {
         uint256 oldAmount1 = status.currentAmount1;
         uint256 oldAmount2 = status.currentAmount2;
@@ -751,8 +758,7 @@ contract OpenOracle is ReentrancyGuard {
 
         protocolFees[protocolFeeRecipient][meta.token2] += protocolFee;
 
-        uint256 requiredToken1Contribution =
-            meta.escalationHalt > oldAmount1 ? (oldAmount1 * meta.multiplier) / MULTIPLIER_PRECISION : oldAmount1 + 1;
+        uint256 requiredToken1Contribution = newAmount1;
 
         uint256 netToken1Contribution =
             requiredToken1Contribution > (oldAmount1) ? requiredToken1Contribution - (oldAmount1) : 0;
