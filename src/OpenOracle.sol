@@ -309,7 +309,7 @@ contract OpenOracle is ReentrancyGuard {
      * @param feePercentage Fee in thousandths of basis points (3000 = 3bps)
      * @param multiplier Multiplier in percentage points (110 = 1.1x)
      * @param settlementTime Time in seconds before report can be settled
-     * @param escalationHalt Threshold past which multiplier drops to 100
+     * @param escalationHalt Threshold at which multiplier drops to 100
      * @param disputeDelay Delay in seconds before disputes are allowed
      * @param protocolFee Protocol fee in thousandths of basis points
      * @param settlerReward Reward for settling the report in wei
