@@ -1,76 +1,29 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-import "forge-std/Test.sol";
+import "./BaseTest.sol";
 import "../src/OpenOracle.sol";
 
-contract MockERC20 {
-    mapping(address => uint256) public balanceOf;
-    mapping(address => mapping(address => uint256)) public allowance;
+// Tests around escalationHalt cap and +1 behavior once at cap
+contract EscalationHaltCapTest is BaseTest {
+    function setUp() public override {
+        BaseTest.setUp();
 
-    string public name;
-    string public symbol;
-    uint8 public decimals = 18;
+        // Ensure high balances for token1 needed by escalation tests
+        uint256 target = 10000e18;
+        uint256 bal;
 
-    constructor(string memory _name, string memory _symbol) {
-        name = _name;
-        symbol = _symbol;
+        bal = token1.balanceOf(alice);
+        if (bal < target) token1.transfer(alice, target - bal);
+
+        bal = token1.balanceOf(bob);
+        if (bal < target) token1.transfer(bob, target - bal);
+
+        bal = token1.balanceOf(charlie);
+        if (bal < target) token1.transfer(charlie, target - bal);
     }
 
-    function mint(address to, uint256 amount) external {
-        balanceOf[to] += amount;
-    }
-
-    function transfer(address to, uint256 amount) external returns (bool) {
-        balanceOf[msg.sender] -= amount;
-        balanceOf[to] += amount;
-        return true;
-    }
-
-    function transferFrom(address from, address to, uint256 amount) external returns (bool) {
-        allowance[from][msg.sender] -= amount;
-        balanceOf[from] -= amount;
-        balanceOf[to] += amount;
-        return true;
-    }
-
-    function approve(address spender, uint256 amount) external returns (bool) {
-        allowance[msg.sender][spender] = amount;
-        return true;
-    }
-}
-
-contract EscalationHaltCapTest is Test {
-    OpenOracle oracle;
-    MockERC20 token1;
-    MockERC20 token2;
-
-    address alice = address(0x1);
-    address bob = address(0x2);
-    address charlie = address(0x3);
-
-    function setUp() public {
-        // Deploy contracts
-        oracle = new OpenOracle();
-
-        // Deploy mock tokens
-        token1 = new MockERC20("Token1", "TK1");
-        token2 = new MockERC20("Token2", "TK2");
-
-        // Mint tokens to test users
-        token1.mint(alice, 10000e18);
-        token2.mint(alice, 10000e18);
-        token1.mint(bob, 10000e18);
-        token2.mint(bob, 10000e18);
-        token1.mint(charlie, 10000e18);
-        token2.mint(charlie, 10000e18);
-
-        // Give ETH to test users
-        vm.deal(alice, 10 ether);
-        vm.deal(bob, 10 ether);
-        vm.deal(charlie, 10 ether);
-    }
-
+    // Verifies amounts are capped at escalationHalt and then +1 applies
     function testEscalationHaltCapBehavior() public {
         // Test the new behavior where expectedAmount1 is capped at escalationHalt
         // when multiplier would push it above the halt threshold
@@ -162,6 +115,7 @@ contract EscalationHaltCapTest is Test {
         assertTrue(disputeOccurred, "Dispute should have occurred");
     }
 
+    // Ensures consistent cap behavior across multiple disputes
     function testEscalationHaltCapMultipleDisputes() public {
         // Test multiple disputes to ensure the cap works consistently
 
@@ -245,6 +199,7 @@ contract EscalationHaltCapTest is Test {
         assertTrue(disputeOccurred, "Dispute should have occurred");
     }
 
+    // Reverts when disputers use incorrect escalation amounts
     function testRevertWhenIncorrectEscalationAmount() public {
         // Test that disputes revert when using incorrect escalation amounts
 

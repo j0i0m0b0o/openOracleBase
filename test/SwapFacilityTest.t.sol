@@ -1,45 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-import "forge-std/Test.sol";
-import "../src/OpenOracle.sol";
+import "./BaseTest.sol";
 import "../src/OracleSwapFacility.sol";
-
-contract MockERC20 {
-    mapping(address => uint256) public balanceOf;
-    mapping(address => mapping(address => uint256)) public allowance;
-
-    string public name;
-    string public symbol;
-    uint8 public decimals = 18;
-
-    constructor(string memory _name, string memory _symbol) {
-        name = _name;
-        symbol = _symbol;
-    }
-
-    function mint(address to, uint256 amount) external {
-        balanceOf[to] += amount;
-    }
-
-    function transfer(address to, uint256 amount) external returns (bool) {
-        balanceOf[msg.sender] -= amount;
-        balanceOf[to] += amount;
-        return true;
-    }
-
-    function transferFrom(address from, address to, uint256 amount) external returns (bool) {
-        allowance[from][msg.sender] -= amount;
-        balanceOf[from] -= amount;
-        balanceOf[to] += amount;
-        return true;
-    }
-
-    function approve(address spender, uint256 amount) external returns (bool) {
-        allowance[msg.sender][spender] = amount;
-        return true;
-    }
-}
 
 contract TestCallback {
     uint256 public lastReportId;
@@ -59,38 +22,22 @@ contract TestCallback {
     }
 }
 
-contract SwapFacilityTest is Test {
-    OpenOracle oracle;
+contract SwapFacilityTest is BaseTest {
     OracleSwapFacility swapFacility;
-    MockERC20 token1;
-    MockERC20 token2;
     TestCallback callbackContract;
 
-    address alice = address(0x1);
-    address bob = address(0x2);
+    function setUp() public override {
+        BaseTest.setUp();
 
-    function setUp() public {
-        // Deploy contracts
-        oracle = new OpenOracle();
+        // Deploy contracts specific to this suite
         swapFacility = new OracleSwapFacility(address(oracle));
         callbackContract = new TestCallback();
-
-        // Deploy mock tokens
-        token1 = new MockERC20("Token1", "TK1");
-        token2 = new MockERC20("Token2", "TK2");
-
-        // Mint tokens to test users
-        token1.mint(alice, 1000e18);
-        token2.mint(alice, 1000e18);
-        token1.mint(bob, 1000e18);
-        token2.mint(bob, 1000e18);
-
-        // Give ETH to test users
-        vm.deal(alice, 10 ether);
-        vm.deal(bob, 10 ether);
     }
 
+    // Creates a swap with full configuration incl. callback and verifies results
     function testSwapFacilityWithFullParams() public {
+        uint256 aliceToken1Start = token1.balanceOf(alice);
+        uint256 aliceToken2Start = token2.balanceOf(alice);
         vm.startPrank(alice);
 
         uint256 amount1 = 5e18;
@@ -164,11 +111,14 @@ contract SwapFacilityTest is Test {
         // Verify Alice got her expected tokens back
         // She should have received 2 * amount1 + fee from the token1 swap
         uint256 expectedToken1 = 2 * amount1 + disputeFee;
-        assertEq(token1.balanceOf(alice), 1000e18 - amount1 + expectedToken1);
-        assertEq(token2.balanceOf(alice), 1000e18 - amount2); // No token2 back since it was swapped
+        assertEq(token1.balanceOf(alice), aliceToken1Start - amount1 + expectedToken1);
+        assertEq(token2.balanceOf(alice), aliceToken2Start - amount2); // No token2 back since it was swapped
     }
 
+    // Creates a swap with the simple constructor and verifies results
     function testSwapFacilityWithSimpleParams() public {
+        uint256 aliceToken1Start = token1.balanceOf(alice);
+        uint256 aliceToken2Start = token2.balanceOf(alice);
         vm.startPrank(alice);
 
         uint256 amount1 = 5e18;
@@ -223,7 +173,7 @@ contract SwapFacilityTest is Test {
         // Verify Alice got her expected tokens back
         // She should have received 2 * amount1 + fee from the token1 swap
         uint256 expectedToken1 = 2 * amount1 + disputeFee;
-        assertEq(token1.balanceOf(alice), 1000e18 - amount1 + expectedToken1);
-        assertEq(token2.balanceOf(alice), 1000e18 - amount2); // No token2 back since it was swapped
+        assertEq(token1.balanceOf(alice), aliceToken1Start - amount1 + expectedToken1);
+        assertEq(token2.balanceOf(alice), aliceToken2Start - amount2); // No token2 back since it was swapped
     }
 }
