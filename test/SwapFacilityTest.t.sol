@@ -103,7 +103,9 @@ contract SwapFacilityTest is Test {
         token2.approve(address(swapFacility), amount2);
 
         // Create swap with full parameters including callback
-        uint256 reportId = swapFacility.createAndReport{value: 0.001 ether}(
+        uint256 reportId = swapFacility.createAndReport{
+            value: 0.001 ether
+        }(
             address(token1),
             address(token2),
             amount1,
@@ -179,9 +181,9 @@ contract SwapFacilityTest is Test {
         token2.approve(address(swapFacility), amount2);
 
         // Create swap with simple parameters (no callback)
-        uint256 reportId = swapFacility.createAndReport{value: 0.001 ether}(
-            address(token1), address(token2), amount1, amount2, fee, settlementTime
-        );
+        uint256 reportId = swapFacility.createAndReport{
+            value: 0.001 ether
+        }(address(token1), address(token2), amount1, amount2, fee, settlementTime);
 
         // Verify tokens were transferred to oracle
         assertEq(token1.balanceOf(address(oracle)), amount1);

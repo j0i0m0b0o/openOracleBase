@@ -265,7 +265,7 @@ contract OpenOracle is ReentrancyGuard {
             (bool success,) = extra.callbackContract.call{gas: extra.callbackGasLimit}(callbackData);
             if (gasleft() < extra.callbackGasLimit / 63) {
                 // consumes all gas limit left!
-                assembly("memory-safe") { invalid() }
+                assembly ("memory-safe") { invalid() }
             }
 
             // Emit event regardless of bool success
@@ -348,29 +348,30 @@ contract OpenOracle is ReentrancyGuard {
         });
         return _createReportInstance(params);
     }
-  /**
-   * @notice Creates a new report instance for price discovery.
-   * @param params Report creation parameters:
-   *   - token1Address: Address of the first token
-   *   - token2Address: Address of the second token
-   *   - exactToken1Report: Exact amount of token1 required for the initial report.
-   *   - feePercentage: Fee in thousandths of basis points (3000 = 0.03%)
-   *   - multiplier: Dispute amount1 multiplier in percentage points (110 = 1.1x). newAmount1 = oldAmount1 * multipier / 100
-   *   - settlementTime: Time before report can be settled
-   *   - escalationHalt: Threshold at which multiplier disappears and newAmount1 = oldAmount1 + 1
-   *   - disputeDelay: Delay in time before disputes are allowed
-   *   - protocolFee: Protocol fee in thousandths of basis points (3000 = 0.03%)
-   *   - settlerReward: Reward for settling the report in wei
-   *   - timeType: If true: time in seconds, if false: blocks
-   *   - callbackContract: Settle calls back into this address
-   *   - callbackSelector: Settle callback uses this method
-   *   - trackDisputes: Optional dispute tracking for smart contracts
-   *   - callbackGasLimit: How much gas the callback must use. Must be safely < block gas limit or funds will be stuck
-   *   - keepFee: If true: initial reporter gets reward even if disputed. If false: they don't if disputed
-   *   - protocolFeeRecipient: Address that receives accrued protocol fees & initial reporter reward if keepFee false
-   * @dev Initial reporter reward is msg.value in wei minus settlerReward
-   * @return reportId The unique identifier for the created report instance
-   */
+
+    /**
+     * @notice Creates a new report instance for price discovery.
+     * @param params Report creation parameters:
+     *   - token1Address: Address of the first token
+     *   - token2Address: Address of the second token
+     *   - exactToken1Report: Exact amount of token1 required for the initial report.
+     *   - feePercentage: Fee in thousandths of basis points (3000 = 0.03%)
+     *   - multiplier: Dispute amount1 multiplier in percentage points (110 = 1.1x). newAmount1 = oldAmount1 * multipier / 100
+     *   - settlementTime: Time before report can be settled
+     *   - escalationHalt: Threshold at which multiplier disappears and newAmount1 = oldAmount1 + 1
+     *   - disputeDelay: Delay in time before disputes are allowed
+     *   - protocolFee: Protocol fee in thousandths of basis points (3000 = 0.03%)
+     *   - settlerReward: Reward for settling the report in wei
+     *   - timeType: If true: time in seconds, if false: blocks
+     *   - callbackContract: Settle calls back into this address
+     *   - callbackSelector: Settle callback uses this method
+     *   - trackDisputes: Optional dispute tracking for smart contracts
+     *   - callbackGasLimit: How much gas the callback must use. Must be safely < block gas limit or funds will be stuck
+     *   - keepFee: If true: initial reporter gets reward even if disputed. If false: they don't if disputed
+     *   - protocolFeeRecipient: Address that receives accrued protocol fees & initial reporter reward if keepFee false
+     * @dev Initial reporter reward is msg.value in wei minus settlerReward
+     * @return reportId The unique identifier for the created report instance
+     */
     function createReportInstance(CreateReportParams calldata params) external payable returns (uint256 reportId) {
         return _createReportInstance(params);
     }
@@ -496,7 +497,9 @@ contract OpenOracle is ReentrancyGuard {
         bytes32 stateHash,
         address reporter
     ) internal {
-        if (reportStatus[reportId].currentReporter != address(0)) revert AlreadyProcessed("report submitted");
+        if (reportStatus[reportId].currentReporter != address(0)) {
+            revert AlreadyProcessed("report submitted");
+        }
 
         ReportMeta storage meta = reportMeta[reportId];
         ReportStatus storage status = reportStatus[reportId];
@@ -674,9 +677,9 @@ contract OpenOracle is ReentrancyGuard {
 
         if (escalationHalt > oldAmount1) {
             expectedAmount1 = (oldAmount1 * multiplier) / MULTIPLIER_PRECISION;
-                if (expectedAmount1 > escalationHalt) {
-                    expectedAmount1 = escalationHalt;
-                }
+            if (expectedAmount1 > escalationHalt) {
+                expectedAmount1 = escalationHalt;
+            }
         } else {
             expectedAmount1 = oldAmount1 + 1;
         }
@@ -716,7 +719,9 @@ contract OpenOracle is ReentrancyGuard {
         if (status.isDistributed) revert AlreadyProcessed("report settled");
         if (tokenToSwap != meta.token1 && tokenToSwap != meta.token2) revert InvalidInput("token to swap");
         if (meta.timeType) {
-            if (block.timestamp < status.reportTimestamp + meta.disputeDelay) revert InvalidTiming("dispute too early");
+            if (block.timestamp < status.reportTimestamp + meta.disputeDelay) {
+                revert InvalidTiming("dispute too early");
+            }
         } else {
             if (_getBlockNumber() < status.reportTimestamp + meta.disputeDelay) {
                 revert InvalidTiming("dispute too early");
@@ -767,9 +772,8 @@ contract OpenOracle is ReentrancyGuard {
             IERC20(meta.token2).safeTransfer(disputer, netToken2Receive);
         }
 
-        IERC20(meta.token1).safeTransferFrom(
-            msg.sender, address(this), requiredToken1Contribution + oldAmount1 + fee + protocolFee
-        );
+        IERC20(meta.token1)
+            .safeTransferFrom(msg.sender, address(this), requiredToken1Contribution + oldAmount1 + fee + protocolFee);
         IERC20(meta.token1).safeTransfer(status.currentReporter, 2 * oldAmount1 + fee);
     }
 

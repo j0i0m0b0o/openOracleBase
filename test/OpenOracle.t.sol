@@ -63,7 +63,9 @@ contract OpenOracleTest is Test {
     function testGetProtocolFees() public {
         // Create report with protocol fee recipient
         vm.prank(alice);
-        uint256 reportId = oracle.createReportInstance{value: ORACLE_FEE}(
+        uint256 reportId = oracle.createReportInstance{
+            value: ORACLE_FEE
+        }(
             OpenOracle.CreateReportParams({
                 token1Address: address(token1),
                 token2Address: address(token2),
@@ -110,16 +112,22 @@ contract OpenOracleTest is Test {
         uint256 expectedProtocolFee = (1e18 * 1000) / 1e7; // 0.001e18
 
         // Check protocol fees accrued
-        assertEq(oracle.protocolFees(protocolFeeRecipient, address(token1)), expectedProtocolFee, "Protocol fee incorrect");
+        assertEq(
+            oracle.protocolFees(protocolFeeRecipient, address(token1)), expectedProtocolFee, "Protocol fee incorrect"
+        );
 
         // Test withdrawal of protocol fees
         uint256 recipientBalanceBefore = token1.balanceOf(protocolFeeRecipient);
-        
+
         vm.prank(protocolFeeRecipient);
         uint256 withdrawnAmount = oracle.getProtocolFees(address(token1));
-        
+
         assertEq(withdrawnAmount, expectedProtocolFee, "Withdrawn amount incorrect");
-        assertEq(token1.balanceOf(protocolFeeRecipient), recipientBalanceBefore + expectedProtocolFee, "Balance after withdrawal incorrect");
+        assertEq(
+            token1.balanceOf(protocolFeeRecipient),
+            recipientBalanceBefore + expectedProtocolFee,
+            "Balance after withdrawal incorrect"
+        );
         assertEq(oracle.protocolFees(protocolFeeRecipient, address(token1)), 0, "Protocol fees not reset");
 
         // Wait for settlement
@@ -133,7 +141,9 @@ contract OpenOracleTest is Test {
     function testGetETHProtocolFees() public {
         // Create report with keepFee false to accumulate ETH protocol fees on settlement
         vm.prank(alice);
-        uint256 reportId = oracle.createReportInstance{value: ORACLE_FEE}(
+        uint256 reportId = oracle.createReportInstance{
+            value: ORACLE_FEE
+        }(
             OpenOracle.CreateReportParams({
                 token1Address: address(token1),
                 token2Address: address(token2),
@@ -167,14 +177,7 @@ contract OpenOracleTest is Test {
 
         // Dispute to trigger ETH fee accumulation
         vm.prank(alice);
-        oracle.disputeAndSwap(
-            reportId,
-            address(token1),
-            1.1e18,
-            2100e18,
-            2000e18,
-            stateHash
-        );
+        oracle.disputeAndSwap(reportId, address(token1), 1.1e18, 2100e18, 2000e18, stateHash);
 
         // Wait for settlement
         vm.warp(block.timestamp + 300);
@@ -191,12 +194,14 @@ contract OpenOracleTest is Test {
 
         // Test withdrawal of ETH protocol fees
         uint256 recipientETHBefore = protocolFeeRecipient.balance;
-        
+
         vm.prank(protocolFeeRecipient);
         uint256 withdrawnETH = oracle.getETHProtocolFees();
-        
+
         assertEq(withdrawnETH, expectedETHFee, "Withdrawn ETH amount incorrect");
-        assertEq(protocolFeeRecipient.balance, recipientETHBefore + expectedETHFee, "ETH balance after withdrawal incorrect");
+        assertEq(
+            protocolFeeRecipient.balance, recipientETHBefore + expectedETHFee, "ETH balance after withdrawal incorrect"
+        );
         assertEq(oracle.accruedProtocolFees(protocolFeeRecipient), 0, "ETH protocol fees not reset");
     }
 
@@ -217,7 +222,9 @@ contract OpenOracleTest is Test {
     function testOnlyRecipientCanWithdrawFees() public {
         // Create report and generate protocol fees
         vm.prank(alice);
-        uint256 reportId = oracle.createReportInstance{value: ORACLE_FEE}(
+        uint256 reportId = oracle.createReportInstance{
+            value: ORACLE_FEE
+        }(
             OpenOracle.CreateReportParams({
                 token1Address: address(token1),
                 token2Address: address(token2),

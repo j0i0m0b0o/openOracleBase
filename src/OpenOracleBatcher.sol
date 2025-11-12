@@ -38,7 +38,9 @@ contract openOracleBatcher is ReentrancyGuard {
         uint256 timestampBound,
         uint256 blockNumberBound
     ) external nonReentrant {
-        if (block.timestamp > timestamp + timestampBound) revert ActionSafetyFailure("timestamp");
+        if (block.timestamp > timestamp + timestampBound) {
+            revert ActionSafetyFailure("timestamp");
+        }
         if (block.number > blockNumber + blockNumberBound) revert ActionSafetyFailure("block number");
 
         _submitInitialReports(reports, batchAmount1, batchAmount2);
@@ -77,8 +79,9 @@ contract openOracleBatcher is ReentrancyGuard {
         for (uint256 i = 0; i < reports.length; i++) {
             InitialReportData memory report = reports[i];
             try oracle.submitInitialReport(report.reportId, report.amount1, report.amount2, report.stateHash, sender) {
-                // Success - continue to next
-            } catch {
+            // Success - continue to next
+            }
+            catch {
                 // Failed - skip and continue
                 continue;
             }
@@ -126,7 +129,9 @@ contract openOracleBatcher is ReentrancyGuard {
         uint256 timestampBound,
         uint256 blockNumberBound
     ) external nonReentrant {
-        if (block.timestamp > timestamp + timestampBound) revert ActionSafetyFailure("timestamp");
+        if (block.timestamp > timestamp + timestampBound) {
+            revert ActionSafetyFailure("timestamp");
+        }
         if (block.number > blockNumber + blockNumberBound) revert ActionSafetyFailure("block number");
         _disputeReports(disputes, batchAmount1, batchAmount2);
     }
@@ -163,8 +168,9 @@ contract openOracleBatcher is ReentrancyGuard {
                 dispute.amt2Expected,
                 dispute.stateHash
             ) {
-                // Success - continue to next
-            } catch {
+            // Success - continue to next
+            }
+            catch {
                 // Failed - skip and continue
                 continue;
             }

@@ -87,7 +87,9 @@ contract EscalationHaltCapTest is Test {
         uint256 protocolFee = 1000; // 1 bps
 
         // Create report instance with escalation halt below what multiplier would reach
-        uint256 reportId = oracle.createReportInstance{value: 0.01 ether}(
+        uint256 reportId = oracle.createReportInstance{
+            value: 0.01 ether
+        }(
             OpenOracle.CreateReportParams({
                 token1Address: address(token1),
                 token2Address: address(token2),
@@ -147,7 +149,9 @@ contract EscalationHaltCapTest is Test {
         token2.approve(address(oracle), 1000e18);
 
         // This should succeed with newAmount1 = escalationHalt + 1
-        oracle.disputeAndSwap(reportId, address(token1), expectedNewAmount1Second, newAmount2Second, newAmount2, stateHash);
+        oracle.disputeAndSwap(
+            reportId, address(token1), expectedNewAmount1Second, newAmount2Second, newAmount2, stateHash
+        );
 
         vm.stopPrank();
 
@@ -173,7 +177,9 @@ contract EscalationHaltCapTest is Test {
         uint256 protocolFee = 1000; // 1 bps
 
         // Create report instance
-        uint256 reportId = oracle.createReportInstance{value: 0.01 ether}(
+        uint256 reportId = oracle.createReportInstance{
+            value: 0.01 ether
+        }(
             OpenOracle.CreateReportParams({
                 token1Address: address(token1),
                 token2Address: address(token2),
@@ -250,7 +256,9 @@ contract EscalationHaltCapTest is Test {
         uint256 multiplier = 150; // 1.5x multiplier
 
         // Create and submit initial report
-        uint256 reportId = oracle.createReportInstance{value: 0.01 ether}(
+        uint256 reportId = oracle.createReportInstance{
+            value: 0.01 ether
+        }(
             OpenOracle.CreateReportParams({
                 token1Address: address(token1),
                 token2Address: address(token2),

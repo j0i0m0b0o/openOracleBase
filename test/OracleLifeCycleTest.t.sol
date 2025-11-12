@@ -71,7 +71,9 @@ contract GasOptimizationLifecycleTest is Test {
 
         // Create report
         vm.prank(alice);
-        uint256 reportId = oracle.createReportInstance{value: ORACLE_FEE}(
+        uint256 reportId = oracle.createReportInstance{
+            value: ORACLE_FEE
+        }(
             OpenOracle.CreateReportParams({
                 token1Address: address(token1),
                 token2Address: address(token2),

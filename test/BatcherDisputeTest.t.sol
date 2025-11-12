@@ -59,7 +59,9 @@ contract OracleStateHashBatcherDisputeTest is Test {
 
         // 1. Create report
         vm.prank(alice);
-        uint256 reportId = oracle.createReportInstance{value: 0.01 ether}(
+        uint256 reportId = oracle.createReportInstance{
+            value: 0.01 ether
+        }(
             OpenOracle.CreateReportParams({
                 token1Address: address(token1),
                 token2Address: address(token2),
