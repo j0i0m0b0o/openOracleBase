@@ -45,12 +45,8 @@ contract TestCallback {
     mapping(uint256 => uint256) public executionCount;
 
     function onOracleSettle(uint256 reportId, uint256, uint256, address, address) external {
-        executions[reportId] = Execution({
-            called: true,
-            gasReceived: gasleft(),
-            reportId: reportId,
-            timestamp: block.timestamp
-        });
+        executions[reportId] =
+            Execution({called: true, gasReceived: gasleft(), reportId: reportId, timestamp: block.timestamp});
         executionCount[reportId]++;
     }
 }
@@ -94,7 +90,9 @@ contract CriticalInvariantsTest is Test {
     function createReportWithCallback() internal returns (uint256) {
         vm.startPrank(ALICE);
 
-        uint256 reportId = oracle.createReportInstance{value: 0.01 ether}(
+        uint256 reportId = oracle.createReportInstance{
+            value: 0.01 ether
+        }(
             OpenOracle.CreateReportParams({
                 token1Address: address(token1),
                 token2Address: address(token2),
@@ -178,7 +176,7 @@ contract CriticalInvariantsTest is Test {
 
         // Test various gas amounts
         uint256[] memory gasAmounts = new uint256[](3);
-        gasAmounts[0] = 70000;  // Very low
+        gasAmounts[0] = 70000; // Very low
         gasAmounts[1] = 100000; // Borderline
         gasAmounts[2] = 500000; // Plenty
 
@@ -196,17 +194,13 @@ contract CriticalInvariantsTest is Test {
                 if (isDistributed) {
                     // If distributed, callback must have been attempted
                     assertTrue(
-                        getCallbackCalled(reportId),
-                        "Atomicity violated: isDistributed=true but callback not called"
+                        getCallbackCalled(reportId), "Atomicity violated: isDistributed=true but callback not called"
                     );
                 }
 
                 if (getCallbackCalled(reportId)) {
                     // If callback was called, must be distributed
-                    assertTrue(
-                        isDistributed,
-                        "Atomicity violated: callback called but isDistributed=false"
-                    );
+                    assertTrue(isDistributed, "Atomicity violated: callback called but isDistributed=false");
                 }
             } catch {
                 // If settle reverted, neither should be true
