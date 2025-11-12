@@ -8,19 +8,6 @@ import "../src/OpenOracle.sol";
 contract EscalationHaltCapTest is BaseTest {
     function setUp() public override {
         BaseTest.setUp();
-
-        // Ensure high balances for token1 needed by escalation tests
-        uint256 target = 10000e18;
-        uint256 bal;
-
-        bal = token1.balanceOf(alice);
-        if (bal < target) token1.transfer(alice, target - bal);
-
-        bal = token1.balanceOf(bob);
-        if (bal < target) token1.transfer(bob, target - bal);
-
-        bal = token1.balanceOf(charlie);
-        if (bal < target) token1.transfer(charlie, target - bal);
     }
 
     // Verifies amounts are capped at escalationHalt and then +1 applies
@@ -30,9 +17,9 @@ contract EscalationHaltCapTest is BaseTest {
 
         vm.startPrank(alice);
 
-        uint256 initialAmount1 = 100e18;
-        uint256 initialAmount2 = 100e18;
-        uint256 escalationHalt = 150e18; // Set halt at 150 tokens
+        uint256 initialAmount1 = 10e18;
+        uint256 initialAmount2 = 10e18;
+        uint256 escalationHalt = 15e18; // Set halt at 15 tokens
         uint256 multiplier = 200; // 2x multiplier (would normally double the amount)
         uint256 fee = 3000; // 3 bps
         uint256 settlementTime = 120; // 2 minutes
@@ -77,7 +64,7 @@ contract EscalationHaltCapTest is BaseTest {
         vm.startPrank(bob);
 
         uint256 expectedNewAmount1 = escalationHalt; // Should be capped at escalationHalt
-        uint256 newAmount2 = 120e18; // Different price to be outside fee boundary
+        uint256 newAmount2 = 12e18; // Different price to be outside fee boundary
 
         // Approve tokens for dispute
         token1.approve(address(oracle), 1000e18);
@@ -95,7 +82,7 @@ contract EscalationHaltCapTest is BaseTest {
         vm.startPrank(charlie);
 
         uint256 expectedNewAmount1Second = escalationHalt + 1; // Should be escalationHalt + 1
-        uint256 newAmount2Second = 100e18; // Different price again
+        uint256 newAmount2Second = 10e18; // Different price again
 
         // Approve tokens for dispute
         token1.approve(address(oracle), 1000e18);
@@ -205,9 +192,9 @@ contract EscalationHaltCapTest is BaseTest {
 
         vm.startPrank(alice);
 
-        uint256 initialAmount1 = 50e18;
-        uint256 initialAmount2 = 50e18;
-        uint256 escalationHalt = 80e18;
+        uint256 initialAmount1 = 5e18;
+        uint256 initialAmount2 = 5e18;
+        uint256 escalationHalt = 8e18;
         uint256 multiplier = 150; // 1.5x multiplier
 
         // Create and submit initial report
@@ -247,26 +234,26 @@ contract EscalationHaltCapTest is BaseTest {
         token1.approve(address(oracle), 1000e18);
         token2.approve(address(oracle), 1000e18);
 
-        // Expected: 50 * 1.5 = 75, but Bob tries with 76
+        // Expected: 5 * 1.5 = 7.5, but Bob tries with 7.6
         vm.expectRevert(abi.encodeWithSelector(OpenOracle.InvalidInput.selector, "new amount"));
-        oracle.disputeAndSwap(reportId, address(token1), 76e18, 60e18, initialAmount2, stateHash);
+        oracle.disputeAndSwap(reportId, address(token1), 76e17, 6e18, initialAmount2, stateHash);
 
-        // Try with correct amount (75e18)
-        oracle.disputeAndSwap(reportId, address(token1), 75e18, 60e18, initialAmount2, stateHash);
+        // Try with correct amount (7.5e18)
+        oracle.disputeAndSwap(reportId, address(token1), 75e17, 6e18, initialAmount2, stateHash);
         vm.stopPrank();
 
         // Now charlie tries to dispute
-        // 75 * 1.5 = 112.5, but escalationHalt is 80, so should be capped at 80
+        // 7.5 * 1.5 = 11.25, but escalationHalt is 8, so should be capped at 8
         vm.startPrank(charlie);
         token1.approve(address(oracle), 1000e18);
         token2.approve(address(oracle), 1000e18);
 
-        // Should fail if trying with uncapped amount (112.5)
+        // Should fail if trying with uncapped amount (11.25)
         vm.expectRevert(abi.encodeWithSelector(OpenOracle.InvalidInput.selector, "new amount"));
-        oracle.disputeAndSwap(reportId, address(token1), 1125e17, 70e18, 60e18, stateHash);
+        oracle.disputeAndSwap(reportId, address(token1), 1125e16, 7e18, 6e18, stateHash);
 
-        // Should succeed with capped amount (80)
-        oracle.disputeAndSwap(reportId, address(token1), escalationHalt, 70e18, 60e18, stateHash);
+        // Should succeed with capped amount (8)
+        oracle.disputeAndSwap(reportId, address(token1), escalationHalt, 7e18, 6e18, stateHash);
         vm.stopPrank();
     }
 }
