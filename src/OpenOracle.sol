@@ -264,8 +264,7 @@ contract OpenOracle is ReentrancyGuard {
 
             (bool success,) = extra.callbackContract.call{gas: extra.callbackGasLimit}(callbackData);
             if (gasleft() < extra.callbackGasLimit / 63) {
-                // consumes all gas limit left!
-                assembly ("memory-safe") { invalid() }
+                revert InvalidGasLimit();
             }
 
             // Emit event regardless of bool success
