@@ -272,7 +272,7 @@ contract OpenOracle is ReentrancyGuard {
         }
 
         // other external calls below (check-effect-interaction pattern)
-
+        if (gasleft() < 60000) revert InvalidGasLimit();
         if (status.disputeOccurred) {
             if (extraData[reportId].keepFee) {
                 _sendEth(status.initialReporter, reporterReward);
