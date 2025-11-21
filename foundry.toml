@@ -7,4 +7,8 @@ optimizer_runs = 190
 test = "test"
 skip = ["test/disabled/**/*"]
 
+# For storage aware fuzz inputs
+extra_output = ["storageLayout"]
+
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
+
