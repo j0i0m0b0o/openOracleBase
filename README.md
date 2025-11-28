@@ -15,20 +15,20 @@ At its most basic level the oracle works by having a reporter submit both a limi
 <th>Deployment Address</th>
 </tr>
 <tr>
-<td><a href="https://basescan.org/address/0x9339811f0F6deE122d2e97dd643c07991Aaa7a29#code">OpenOracle</a></td>
-<td><code>0x9339811f0F6deE122d2e97dd643c07991Aaa7a29</code></td>
+<td><a href="https://basescan.org/address/0xdcaa5082564F395819dC2F215716Fe901a1d0A23#code">OpenOracle</a></td>
+<td><code>0xdcaa5082564F395819dC2F215716Fe901a1d0A23</code></td>
 </tr>
 <tr>
-<td><a href="https://basescan.org/address/0x26bB116E62c9cE0b01aED25936f58fD1612f33Fe#code">openOracleBatcher</a></td>
-<td><code>0x26bB116E62c9cE0b01aED25936f58fD1612f33Fe</code></td>
+<td><a href="https://basescan.org/address/0x8FAF4b5E99fF6804BD259b2C44629A537a74a3ba#code">openOracleBatcher</a></td>
+<td><code>0x8FAF4b5E99fF6804BD259b2C44629A537a74a3ba</code></td>
 </tr>
 <tr>
-<td><a href="https://basescan.org/address/0xba007f80923554758e94516d749f99AF4F464465#code">OracleSwapFacility</a></td>
-<td><code>0xba007f80923554758e94516d749f99AF4F464465</code></td>
+<td><a href="https://basescan.org/address/0xF7fA93DB7A5865530A20e816076da4760dFE4759#code">OracleSwapFacility</a></td>
+<td><code>0xF7fA93DB7A5865530A20e816076da4760dFE4759</code></td>
 </tr>
 <tr>
-<td><a href="https://basescan.org/address/0x7d8ddF241A92Ec58d93BFfE56B991F9aa37dAFc2#code">openOracleDataProviderV3</a></td>
-<td><code>0x7d8ddF241A92Ec58d93BFfE56B991F9aa37dAFc2</code></td>
+<td><a href="https://basescan.org/address/0xa7FD2D2d35dF86437B26dCb41111F59787bD4192#code">openOracleDataProviderV3</a></td>
+<td><code>0xa7FD2D2d35dF86437B26dCb41111F59787bD4192</code></td>
 </tr>
 </table>
 
