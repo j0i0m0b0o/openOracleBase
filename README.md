@@ -32,6 +32,19 @@ At its most basic level the oracle works by having a reporter submit both a limi
 </tr>
 </table>
 
+### Ethereum L1
+
+<table>
+<tr>
+<th>Contract</th>
+<th>Deployment Address</th>
+</tr>
+<tr>
+<td><a href="https://etherscan.io/address/0xdcaa5082564F395819dC2F215716Fe901a1d0A23#code">OpenOracle</a></td>
+<td><code>0xdcaa5082564F395819dC2F215716Fe901a1d0A23</code></td>
+</tr>
+</table>
+
 ## Docs
 
 - [openOracle documentation](https://openprices.gitbook.io/openoracle-docs)
