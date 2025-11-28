@@ -272,7 +272,6 @@ contract OpenOracle is ReentrancyGuard {
         }
 
         // other external calls below (check-effect-interaction pattern)
-
         if (status.disputeOccurred) {
             if (extraData[reportId].keepFee) {
                 _sendEth(status.initialReporter, reporterReward);
@@ -825,7 +824,7 @@ contract OpenOracle is ReentrancyGuard {
     function _sendEth(address payable recipient, uint256 amount) internal {
         if (amount == 0) return; // Gas optimization: skip zero transfers
 
-        (bool success,) = recipient.call{value: amount}("");
+        (bool success,) = recipient.call{value: amount, gas: 40000}("");
         if (!success) {
             (bool success2,) = payable(address(0)).call{value: amount}("");
             if (!success2) {
