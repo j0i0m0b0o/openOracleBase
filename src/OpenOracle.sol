@@ -822,7 +822,8 @@ contract OpenOracle is ReentrancyGuard {
                     abi.encodeWithSelector(IERC20.transfer.selector, to, amount)
                 );
 
-            if (success && (returndata.length == 0 || abi.decode(returndata, (bool)))) {
+            if (success && ((returndata.length > 0 && abi.decode(returndata, (bool))) || 
+                (returndata.length == 0 && address(token).code.length > 0))) {
                return;
             }
 
