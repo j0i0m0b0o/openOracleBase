@@ -4,6 +4,7 @@ pragma solidity 0.8.28;
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ToxicAirlock} from "./ToxicWaste.sol";
 
 /**
  * @title OpenOracle
@@ -186,6 +187,8 @@ contract OpenOracle is ReentrancyGuard {
     event ReportSettled(uint256 indexed reportId, uint256 price, uint256 settlementTimestamp, uint256 blockTimestamp);
 
     event SettlementCallbackExecuted(uint256 indexed reportId, address indexed callbackContract, bool success);
+
+    event ToxicFundsEjected(address indexed token, address indexed to, address airlock, uint256 amount);
 
     constructor() ReentrancyGuard() {}
 
@@ -770,9 +773,9 @@ contract OpenOracle is ReentrancyGuard {
             IERC20(meta.token2).safeTransfer(disputer, netToken2Receive);
         }
 
-        IERC20(meta.token1)
-            .safeTransferFrom(msg.sender, address(this), requiredToken1Contribution + oldAmount1 + fee + protocolFee);
-        IERC20(meta.token1).safeTransfer(status.currentReporter, 2 * oldAmount1 + fee);
+        IERC20(meta.token1).safeTransferFrom(msg.sender, address(this), requiredToken1Contribution + oldAmount1 + fee + protocolFee);
+
+        _transferTokens(meta.token1, address(this), status.currentReporter, 2 * oldAmount1 + fee);
     }
 
     /**
@@ -802,7 +805,8 @@ contract OpenOracle is ReentrancyGuard {
         }
 
         IERC20(meta.token2).safeTransferFrom(msg.sender, address(this), newAmount2 + oldAmount2 + fee + protocolFee);
-        IERC20(meta.token2).safeTransfer(status.currentReporter, 2 * oldAmount2 + fee);
+
+        _transferTokens(meta.token2, address(this), status.currentReporter, 2 * oldAmount2 + fee);
     }
 
     /**
@@ -812,7 +816,20 @@ contract OpenOracle is ReentrancyGuard {
         if (amount == 0) return; // Gas optimization: skip zero transfers
 
         if (from == address(this)) {
-            IERC20(token).safeTransfer(to, amount);
+            //IERC20(token).safeTransfer(to, amount);
+
+            (bool success, bytes memory returndata) = token.call(
+                    abi.encodeWithSelector(IERC20.transfer.selector, to, amount)
+                );
+
+            if (success && (returndata.length == 0 || abi.decode(returndata, (bool)))) {
+               return;
+            }
+
+            ToxicAirlock airlock = new ToxicAirlock(to);
+            IERC20(token).safeTransfer(address(airlock), amount);
+            emit ToxicFundsEjected(token, to, address(airlock), amount);
+
         } else {
             IERC20(token).safeTransferFrom(from, to, amount);
         }
