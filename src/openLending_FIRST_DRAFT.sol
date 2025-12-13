@@ -694,6 +694,8 @@ contract openLending is ReentrancyGuard {
 
         if(liqThresh < borrowValueInSupplyTerms) {
             lending.finished = true;
+            _transferTokens(lending.borrowToken, address(this), lending.lender, lending.repaidDebt);
+
             if (borrowValueInSupplyTerms > lending.supplyAmount){
                 _transferTokens(lending.supplyToken, address(this), lending.lender, lending.supplyAmount);
                 _transferTokens(lending.supplyToken, address(this), lending.liquidator, tokenStake);
