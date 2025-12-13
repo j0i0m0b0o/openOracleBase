@@ -30,7 +30,6 @@ contract OpenOracle is ReentrancyGuard {
     error TokensCannotBeSame();
     error NoReportToDispute();
     error EthTransferFailed();
-    error CallToArbSysFailed();
     error InvalidAmount2(string parameter);
     error InvalidStateHash(string parameter);
     error InvalidGasLimit();
