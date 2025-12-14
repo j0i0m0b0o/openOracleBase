@@ -16,6 +16,9 @@ import {ToxicAirlock} from "./ToxicWaste.sol";
 // check for < > = >= <= wedges
 // TODO2: make sure borrower cant accept empty offers somehow and mess with state? like offers that dont exist yet. and make sure lenders cant offer against lendingIds that dont exist yet etc.
 //      TODO2 seems ok
+// TODO: for msg.value of liquidation, can pin this to just over settler reward to cover the minimum initial reporter reward in oracle contract
+// TODO: force-set the stake % to some fraction of 1 - liquidation threshold
+
 contract oracleFeeReceiver is ReentrancyGuard {
     using SafeERC20 for IERC20;
     address public immutable owner;
@@ -589,6 +592,7 @@ contract openLending is ReentrancyGuard {
                If liquidation is unsuccessful, stake is given to borrower.
                If liquidation is successful, liquidator gets their stake back and splits remaining equity 50/50 with lender.
                Lender receives all remaining collateral after liquidator split.
+               Message value should be equal to (1e15 + 1) wei. Liquidator receives excess over 1e15 back.
      * @param lendingId Unique identification number of lending instance
      * @param expectedCollateral Amount of supplied collateral expected
      * @param expectedRepaidDebt Amount of repaid debt expected
@@ -608,6 +612,7 @@ contract openLending is ReentrancyGuard {
         if (lending.repaidDebt != expectedRepaidDebt) revert InvalidInput("expected repaid debt");
         if (lending.borrowAmount != expectedBorrowAmount) revert InvalidInput("expected borrow amount");
         if (lending.start != expectedLoanStart) revert InvalidInput("expected loan start");
+        if (msg.value < 1e15 + 1) revert InvalidInput("msg.value < 1e15 + 1");
 
         if (block.timestamp > lending.start + lending.term) revert InvalidInput("arrangement expired");
 
@@ -621,7 +626,7 @@ contract openLending is ReentrancyGuard {
             protocolFee: 100000,
             token2Address: lending.borrowToken,
             callbackGasLimit: 1000000,
-            feePercentage: 0,
+            feePercentage: 1,
             multiplier: 200,
             timeType: true,
             trackDisputes: false,
@@ -768,5 +773,84 @@ contract openLending is ReentrancyGuard {
         }
     }
 
+    // -------------------------------------------------------------------------
+    //                              View functions
+    // -------------------------------------------------------------------------
 
+    struct LendingView {
+        uint48 term;
+        uint256 supplyAmount;
+        uint256 borrowAmount;
+        uint256 amountDemanded;
+        uint256 repaidDebt;
+        uint256 stake;
+        uint24 liquidationThreshold;
+        uint48 offerNumber;
+        uint48 refiOfferNumber;
+        uint48 offerExpiration;
+        uint48 start;
+        uint48 gracePeriod;
+        uint48 liquidationStart;
+        uint32 rate;
+        address borrower;
+        address lender;
+        address liquidator;
+        address supplyToken;
+        address borrowToken;
+        address feeRecipient;
+        uint256 refiOfferNonce;
+        bool cancelled;
+        bool active;
+        bool inLiquidation;
+        bool finished;
+        bool allowAnyLiquidator;
+    }
+
+    function getLending(uint256 lendingId) external view returns (LendingView memory) {
+        LendingArrangement storage l = lendingArrangements[lendingId];
+        return LendingView({
+            term: l.term,
+            supplyAmount: l.supplyAmount,
+            borrowAmount: l.borrowAmount,
+            amountDemanded: l.amountDemanded,
+            repaidDebt: l.repaidDebt,
+            stake: l.stake,
+            liquidationThreshold: l.liquidationThreshold,
+            offerNumber: l.offerNumber,
+            refiOfferNumber: l.refiOfferNumber,
+            offerExpiration: l.offerExpiration,
+            start: l.start,
+            gracePeriod: l.gracePeriod,
+            liquidationStart: l.liquidationStart,
+            rate: l.rate,
+            borrower: l.borrower,
+            lender: l.lender,
+            liquidator: l.liquidator,
+            supplyToken: l.supplyToken,
+            borrowToken: l.borrowToken,
+            feeRecipient: l.feeRecipient,
+            refiOfferNonce: l.refiOfferNonce,
+            cancelled: l.cancelled,
+            active: l.active,
+            inLiquidation: l.inLiquidation,
+            finished: l.finished,
+            allowAnyLiquidator: l.allowAnyLiquidator
+        });
+    }
+
+    function getRefiParams(uint256 lendingId) external view returns (RefiParams memory) {
+        return lendingArrangements[lendingId].refiParams;
+    }
+
+    function getLendingOffer(uint256 lendingId, uint256 offerNumber) external view returns (LendingOffers memory) {
+        return lendingArrangements[lendingId].lendingOffers[offerNumber];
+    }
+
+    function getRefiLendingOffer(uint256 lendingId, uint256 refiNonce, uint256 refiOfferNumber) external view returns (RefiLendingOffers memory) {
+        return lendingArrangements[lendingId].refiLendingOffers[refiNonce][refiOfferNumber];
+    }
+
+    function getRefiNonceAccepted(uint256 lendingId, uint256 refiNonce) external view returns (bool) {
+        return lendingArrangements[lendingId].refiNonceAccepted[refiNonce];
+    }
 }
