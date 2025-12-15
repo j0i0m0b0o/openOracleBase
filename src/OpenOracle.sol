@@ -194,12 +194,11 @@ contract OpenOracle is ReentrancyGuard {
      * @notice Withdraws accumulated protocol fees for a specific token
      * @param tokenToGet The token address to withdraw fees for
      */
-    function getProtocolFees(address tokenToGet) external returns (uint256) {
+    function getProtocolFees(address tokenToGet) external {
         uint256 amount = protocolFees[msg.sender][tokenToGet];
         if (amount > 0) {
             protocolFees[msg.sender][tokenToGet] = 0;
             _transferTokens(tokenToGet, address(this), msg.sender, amount);
-            return amount;
         }
     }
 
