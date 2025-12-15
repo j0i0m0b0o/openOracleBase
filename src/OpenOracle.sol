@@ -4,7 +4,6 @@ pragma solidity 0.8.28;
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {ToxicAirlock} from "./ToxicWaste.sol";
 
 /**
  * @title OpenOracle
@@ -815,7 +814,6 @@ contract OpenOracle is ReentrancyGuard {
         if (amount == 0) return; // Gas optimization: skip zero transfers
 
         if (from == address(this)) {
-            //IERC20(token).safeTransfer(to, amount);
 
             (bool success, bytes memory returndata) = token.call(
                     abi.encodeWithSelector(IERC20.transfer.selector, to, amount)
@@ -826,9 +824,7 @@ contract OpenOracle is ReentrancyGuard {
                return;
             }
 
-            ToxicAirlock airlock = new ToxicAirlock(to);
-            IERC20(token).safeTransfer(address(airlock), amount);
-            emit ToxicFundsEjected(token, to, address(airlock), amount);
+            protocolFees[to][token] += amount;
 
         } else {
             IERC20(token).safeTransferFrom(from, to, amount);
