@@ -6,17 +6,11 @@ import {IERC20}      from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20}   from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {ToxicAirlock} from "./ToxicWaste.sol";
 
 /* ------------ openLending v1 ------------ */
 // Uses openOracle: https://openprices.gitbook.io/openoracle-docs/openoracle
 // TODO: weird timing angles on repay / other functions
-// TODO: protocol fees - better incentive-managed payout splits based on liquidation outcome? but seems fine as-is
 // TODO: some way to let ppl grab protocol fees before settlement? would be complex
-// check for < > = >= <= wedges
-// TODO2: make sure borrower cant accept empty offers somehow and mess with state? like offers that dont exist yet. and make sure lenders cant offer against lendingIds that dont exist yet etc.
-//      TODO2 seems ok
-// TODO: for msg.value of liquidation, can pin this to just over settler reward to cover the minimum initial reporter reward in oracle contract
 // TODO: force-set the stake % to some fraction of 1 - liquidation threshold
 
 contract oracleFeeReceiver is ReentrancyGuard {
@@ -61,6 +55,7 @@ contract openLending is ReentrancyGuard {
 
     mapping(uint256 => LendingArrangement) public lendingArrangements;
     mapping(uint256 => uint256) public reportIdToLending;
+    mapping(address => mapping(address => uint256)) public tempHolding;
 
     constructor(IOpenOracle _oracle) {
         oracle = _oracle;
@@ -135,7 +130,6 @@ contract openLending is ReentrancyGuard {
     event RefiBorrowOfferCancelled(uint256 lendingId, uint256 refiOfferNumber, uint256 refiNonce);
     event OfferAccepted(uint256 lendingId, uint256 offerNumber);
     event RefiOfferAccepted(uint256 lendingId, uint256 refiOfferNumber, uint256 refiNonce);
-    event ToxicFundsEjected(address indexed token, address indexed to, address airlock, uint256 amount);
     event LoanLiquidationUnderway(uint256 lendingId, uint256 reportId);
 
     /**
@@ -725,9 +719,17 @@ contract openLending is ReentrancyGuard {
 
         oracleFeeReceiver feeReceiver = oracleFeeReceiver(lending.feeRecipient);
 
-        feeReceiver.collect();
-        uint256 feesSupply = feeReceiver.sweep(lending.supplyToken);
-        uint256 feesBorrow = feeReceiver.sweep(lending.borrowToken);
+        try feeReceiver.collect() {} catch{}
+
+        uint256 supplyBalanceStart = IERC20(lending.supplyToken).balanceOf(address(this));
+        try feeReceiver.sweep(lending.supplyToken) {} catch{}
+        uint256 supplyBalanceEnd = IERC20(lending.supplyToken).balanceOf(address(this));
+        uint256 feesSupply = supplyBalanceEnd > supplyBalanceStart ? supplyBalanceEnd - supplyBalanceStart : 0;
+
+        uint256 borrowBalanceStart = IERC20(lending.borrowToken).balanceOf(address(this));
+        try feeReceiver.sweep(lending.borrowToken) {} catch{}
+        uint256 borrowBalanceEnd = IERC20(lending.borrowToken).balanceOf(address(this));
+        uint256 feesBorrow = borrowBalanceEnd > borrowBalanceStart ? borrowBalanceEnd - borrowBalanceStart : 0;
 
         uint256 borrowerSupplyFeePiece = feesSupply / 2;
         uint256 lenderSupplyFeePiece = borrowerSupplyFeePiece / 2;
@@ -764,12 +766,22 @@ contract openLending is ReentrancyGuard {
                return;
             }
 
-            ToxicAirlock airlock = new ToxicAirlock(to);
-            IERC20(token).safeTransfer(address(airlock), amount);
-            emit ToxicFundsEjected(token, to, address(airlock), amount);
+            tempHolding[to][token] += amount;
 
         } else {
             IERC20(token).safeTransferFrom(from, to, amount);
+        }
+    }
+
+    /**
+     * @notice Withdraws temp holdings for a specific token
+     * @param tokenToGet The token address to withdraw tokens for
+     */
+    function getTempHolding(address tokenToGet) external nonReentrant {
+        uint256 amount = tempHolding[msg.sender][tokenToGet];
+        if (amount > 0) {
+            tempHolding[msg.sender][tokenToGet] = 0;
+            _transferTokens(tokenToGet, address(this), msg.sender, amount);
         }
     }
 
