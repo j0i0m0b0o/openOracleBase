@@ -10,6 +10,7 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 /* ------------ openLending v1 ------------ */
 // Uses openOracle: https://openprices.gitbook.io/openoracle-docs/openoracle
 // TODO: some way to let ppl grab protocol fees before settlement? would be complex
+// TODO: improve grace period mechanics in context of variable settlement time (300 currently hard coded as part of the input)
 
 contract oracleFeeReceiver is ReentrancyGuard {
     using SafeERC20 for IERC20;
