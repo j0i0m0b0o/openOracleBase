@@ -3,7 +3,6 @@ pragma solidity ^0.8.26;
 
 import "forge-std/Test.sol";
 import "../src/OpenOracle.sol";
-import "../src/ToxicWaste.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 // Mock ERC20 with blacklist functionality (like USDC)
@@ -35,6 +34,10 @@ contract BlacklistableERC20 is ERC20 {
     }
 }
 
+/// @title BlacklistTrollingTest
+/// @notice Tests that oracle handles blacklisted recipients by crediting protocolFees
+/// When a transfer fails due to blacklist, funds go to protocolFees[recipient][token]
+/// and can be claimed later via getProtocolFees once unblacklisted
 contract BlacklistTrollingTest is Test {
     OpenOracle internal oracle;
     BlacklistableERC20 internal token1;
@@ -48,8 +51,6 @@ contract BlacklistTrollingTest is Test {
 
     uint256 constant ORACLE_FEE = 0.01 ether;
     uint256 constant SETTLER_REWARD = 0.001 ether;
-
-    event ToxicFundsEjected(address indexed token, address indexed to, address airlock, uint256 amount);
 
     function setUp() public {
         oracle = new OpenOracle();
@@ -88,7 +89,7 @@ contract BlacklistTrollingTest is Test {
 
     // -------------------------------------------------------------------------
     // Test: Dispute with token1 swap - previous reporter gets blacklisted
-    // Verifies airlock is deployed and tokens are recoverable
+    // Funds should go to protocolFees and be claimable later
     // -------------------------------------------------------------------------
     function testDisputeToken1Swap_PreviousReporterBlacklisted() public {
         // Create report
@@ -129,11 +130,8 @@ contract BlacklistTrollingTest is Test {
 
         uint256 bobToken1Before = token1.balanceOf(bob);
 
-        // Alice disputes - Bob should receive tokens via airlock since he's blacklisted
-        // newAmount2 (2100e18) > oldAmount2 (2000e18) - no refund to disputer
-        vm.expectEmit(true, true, false, false);
-        emit ToxicFundsEjected(address(token1), bob, address(0), 0); // We don't know airlock address yet
-
+        // Alice disputes - Bob should NOT receive tokens directly (he's blacklisted)
+        // Tokens go to protocolFees[bob][token1] instead
         vm.prank(alice);
         oracle.disputeAndSwap(
             reportId,
@@ -144,33 +142,39 @@ contract BlacklistTrollingTest is Test {
             stateHash
         );
 
-        // Bob's direct balance shouldn't have increased (tokens went to airlock)
-        assertEq(token1.balanceOf(bob), bobToken1Before, "Bob balance should not change - tokens in airlock");
+        // Bob's direct balance shouldn't have increased (tokens went to protocolFees)
+        assertEq(token1.balanceOf(bob), bobToken1Before, "Bob balance should not change - tokens in protocolFees");
 
-        // Find the airlock address from logs
-        Vm.Log[] memory logs = vm.getRecordedLogs();
-        address airlockAddress;
-        for (uint i = 0; i < logs.length; i++) {
-            if (logs[i].topics[0] == keccak256("ToxicFundsEjected(address,address,address,uint256)")) {
-                airlockAddress = address(uint160(uint256(logs[i].topics[2])));
-            }
-        }
-
-        // Verify oracle balance - should have newAmount1 + protocolFee
-        uint256 protocolFee = (1e18 * 1000) / 1e7;
-        assertEq(token1.balanceOf(address(oracle)), 1.1e18 + protocolFee, "Oracle should have newAmount1 + protocolFee");
-
-        // Unblacklist Bob so he can sweep from airlock
-        token1.unblacklist(bob);
+        // Bob should have claimable tokens in protocolFees
+        // When disputed: previous reporter gets 2 * oldAmount1 + swapFee
+        // oldAmount1 = 1e18, swapFee = 1e18 * 3000 / 1e7 = 3e14
+        uint256 expectedBobClaimable = 2 * 1e18 + (1e18 * 3000 / 1e7);
+        assertEq(oracle.protocolFees(bob, address(token1)), expectedBobClaimable, "Bob protocolFees incorrect");
 
         // The dispute succeeded - oracle is not bricked
-        // Now let's settle to verify the whole flow works
+        // Settle to verify the whole flow works
         vm.warp(block.timestamp + 300);
 
         vm.prank(charlie);
         (uint256 price,) = oracle.settle(reportId);
 
-        assertGt(price, 0, "Price should be set after settlement");
+        // Price = amount1 * 1e18 / amount2 = 1.1e18 * 1e18 / 2100e18
+        uint256 finalAmount1 = 11e17;
+        uint256 finalAmount2 = 2100e18;
+        uint256 expectedPrice = (finalAmount1 * 1e18) / finalAmount2;
+        assertEq(price, expectedPrice, "Price incorrect after settlement");
+
+        // Bob can claim his funds via protocolFees once unblacklisted
+        token1.unblacklist(bob);
+
+        assertEq(oracle.protocolFees(bob, address(token1)), expectedBobClaimable, "Bob claimable should match");
+
+        uint256 bobBalanceBefore = token1.balanceOf(bob);
+        vm.prank(bob);
+        oracle.getProtocolFees(address(token1));
+
+        assertEq(token1.balanceOf(bob), bobBalanceBefore + expectedBobClaimable, "Bob should receive exact funds");
+        assertEq(oracle.protocolFees(bob, address(token1)), 0, "Bob protocolFees should be zero after claim");
     }
 
     // -------------------------------------------------------------------------
@@ -225,8 +229,14 @@ contract BlacklistTrollingTest is Test {
             stateHash
         );
 
-        // Bob's token2 balance shouldn't have increased (tokens went to airlock)
-        assertEq(token2.balanceOf(bob), bobToken2Before, "Bob token2 balance should not change - tokens in airlock");
+        // Bob's token2 balance shouldn't have increased (tokens went to protocolFees)
+        assertEq(token2.balanceOf(bob), bobToken2Before, "Bob token2 balance should not change - tokens in protocolFees");
+
+        // Bob should have claimable token2 in protocolFees
+        // When disputed with token2 swap: previous reporter gets 2 * oldAmount2 + swapFee
+        // oldAmount2 = 2000e18, swapFee = 2000e18 * 3000 / 1e7 = 6e17
+        uint256 expectedBobToken2Claimable = 2 * 2000e18 + (2000e18 * 3000 / 1e7);
+        assertEq(oracle.protocolFees(bob, address(token2)), expectedBobToken2Claimable, "Bob token2 protocolFees incorrect");
 
         // Verify dispute succeeded and oracle not bricked
         vm.warp(block.timestamp + 300);
@@ -234,7 +244,11 @@ contract BlacklistTrollingTest is Test {
         vm.prank(charlie);
         (uint256 price,) = oracle.settle(reportId);
 
-        assertGt(price, 0, "Price should be set after settlement");
+        // Price = amount1 * 1e18 / amount2 = 1.1e18 * 1e18 / 2100e18
+        uint256 finalAmount1 = 11e17;
+        uint256 finalAmount2 = 2100e18;
+        uint256 expectedPrice = (finalAmount1 * 1e18) / finalAmount2;
+        assertEq(price, expectedPrice, "Price incorrect after settlement");
     }
 
     // -------------------------------------------------------------------------
@@ -282,11 +296,11 @@ contract BlacklistTrollingTest is Test {
         uint256 bobToken2Before = token2.balanceOf(bob);
         uint256 charlieETHBefore = charlie.balance;
 
-        // Settle should succeed via airlock
+        // Settle should succeed - funds go to protocolFees
         vm.prank(charlie);
         (uint256 price, uint256 settlementTimestamp) = oracle.settle(reportId);
 
-        // Bob's balances should NOT have changed (tokens went to airlocks)
+        // Bob's balances should NOT have changed (tokens went to protocolFees)
         assertEq(token1.balanceOf(bob), bobToken1Before, "Bob token1 should not change");
         assertEq(token2.balanceOf(bob), bobToken2Before, "Bob token2 should not change");
 
@@ -294,18 +308,26 @@ contract BlacklistTrollingTest is Test {
         assertEq(charlie.balance, charlieETHBefore + SETTLER_REWARD, "Charlie should get settler reward");
 
         // Settlement succeeded
-        assertGt(price, 0, "Price should be set");
+        // Price = amount1 * 1e18 / amount2 = 1e18 * 1e18 / 2000e18
+        uint256 expectedPrice = (1e18 * 1e18) / 2000e18;
+        assertEq(price, expectedPrice, "Price incorrect");
         assertEq(settlementTimestamp, block.timestamp, "Settlement timestamp should be set");
 
-        // Verify oracle has no tokens left (all went to airlocks)
-        assertEq(token1.balanceOf(address(oracle)), 0, "Oracle should have no token1");
-        assertEq(token2.balanceOf(address(oracle)), 0, "Oracle should have no token2");
+        // Verify Bob has claimable funds in protocolFees
+        uint256 bobToken1Claimable = oracle.protocolFees(bob, address(token1));
+        uint256 bobToken2Claimable = oracle.protocolFees(bob, address(token2));
+        assertEq(bobToken1Claimable, 1e18, "Bob should have token1 in protocolFees");
+        assertEq(bobToken2Claimable, 2000e18, "Bob should have token2 in protocolFees");
+
+        // Oracle should still hold the funds (they're in protocolFees mapping)
+        assertEq(token1.balanceOf(address(oracle)), 1e18, "Oracle should hold token1");
+        assertEq(token2.balanceOf(address(oracle)), 2000e18, "Oracle should hold token2");
     }
 
     // -------------------------------------------------------------------------
-    // Test: Full lifecycle with airlock sweep - verify beneficiary can recover if not blacklisted
+    // Test: Full lifecycle - verify beneficiary can recover via getProtocolFees
     // -------------------------------------------------------------------------
-    function testAirlockSweep_BeneficiaryCanRecover() public {
+    function testProtocolFeesClaim_BeneficiaryCanRecover() public {
         // Create report
         vm.prank(alice);
         uint256 reportId = oracle.createReportInstance{value: ORACLE_FEE}(
@@ -341,41 +363,12 @@ contract BlacklistTrollingTest is Test {
         token1.blacklist(bob);
         token2.blacklist(bob);
 
-        // Start recording logs to capture airlock addresses
-        vm.recordLogs();
-
         vm.prank(charlie);
         oracle.settle(reportId);
 
-        // Get airlock addresses from logs
-        Vm.Log[] memory logs = vm.getRecordedLogs();
-        address token1Airlock;
-        address token2Airlock;
-
-        for (uint i = 0; i < logs.length; i++) {
-            if (logs[i].topics[0] == keccak256("ToxicFundsEjected(address,address,address,uint256)")) {
-                address token = address(uint160(uint256(logs[i].topics[1])));
-                address airlock = abi.decode(logs[i].data, (address));
-
-                if (token == address(token1)) {
-                    token1Airlock = airlock;
-                } else if (token == address(token2)) {
-                    token2Airlock = airlock;
-                }
-            }
-        }
-
-        // Verify airlocks were created
-        assertTrue(token1Airlock != address(0), "Token1 airlock should be created");
-        assertTrue(token2Airlock != address(0), "Token2 airlock should be created");
-
-        // Verify airlocks have the tokens
-        assertEq(token1.balanceOf(token1Airlock), 1e18, "Token1 airlock should have tokens");
-        assertEq(token2.balanceOf(token2Airlock), 2000e18, "Token2 airlock should have tokens");
-
-        // Verify airlock beneficiary is Bob
-        assertEq(ToxicAirlock(token1Airlock).beneficiary(), bob, "Token1 airlock beneficiary should be Bob");
-        assertEq(ToxicAirlock(token2Airlock).beneficiary(), bob, "Token2 airlock beneficiary should be Bob");
+        // Verify funds are in protocolFees
+        assertEq(oracle.protocolFees(bob, address(token1)), 1e18, "Bob should have token1 claimable");
+        assertEq(oracle.protocolFees(bob, address(token2)), 2000e18, "Bob should have token2 claimable");
 
         // Unblacklist Bob
         token1.unblacklist(bob);
@@ -384,16 +377,19 @@ contract BlacklistTrollingTest is Test {
         uint256 bobToken1Before = token1.balanceOf(bob);
         uint256 bobToken2Before = token2.balanceOf(bob);
 
-        // Bob sweeps from airlocks
-        ToxicAirlock(token1Airlock).sweep(address(token1));
-        ToxicAirlock(token2Airlock).sweep(address(token2));
+        // Bob claims via getProtocolFees
+        vm.prank(bob);
+        oracle.getProtocolFees(address(token1));
+
+        vm.prank(bob);
+        oracle.getProtocolFees(address(token2));
 
         // Verify Bob received the tokens
-        assertEq(token1.balanceOf(bob), bobToken1Before + 1e18, "Bob should receive token1 from airlock");
-        assertEq(token2.balanceOf(bob), bobToken2Before + 2000e18, "Bob should receive token2 from airlock");
+        assertEq(token1.balanceOf(bob), bobToken1Before + 1e18, "Bob should receive token1");
+        assertEq(token2.balanceOf(bob), bobToken2Before + 2000e18, "Bob should receive token2");
 
-        // Airlocks should be empty
-        assertEq(token1.balanceOf(token1Airlock), 0, "Token1 airlock should be empty");
-        assertEq(token2.balanceOf(token2Airlock), 0, "Token2 airlock should be empty");
+        // protocolFees should be zeroed out
+        assertEq(oracle.protocolFees(bob, address(token1)), 0, "Bob token1 protocolFees should be zero");
+        assertEq(oracle.protocolFees(bob, address(token2)), 0, "Bob token2 protocolFees should be zero");
     }
 }
