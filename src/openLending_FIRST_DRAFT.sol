@@ -9,8 +9,10 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 
 /* ------------ openLending v1 ------------ */
 // Uses openOracle: https://openprices.gitbook.io/openoracle-docs/openoracle
-// TODO: some way to let ppl grab protocol fees before settlement? would be complex
+// TODO: some way to let ppl grab oracle game protocol fees before settlement? just make the protocol fee sweep an internal function and should be easy
 // TODO: improve grace period mechanics in context of variable settlement time (300 currently hard coded as part of the input)
+// TODO: explore design space where borrower can withdraw repaid debt or excess collateral prior to end of term or refinancing via openOracle
+//       how would this interact with liquidation oracle game to prevent bad outcomes for lender
 
 contract oracleFeeReceiver is ReentrancyGuard {
     using SafeERC20 for IERC20;
