@@ -29,7 +29,6 @@ contract OpenOracle is ReentrancyGuard {
     error TokensCannotBeSame();
     error NoReportToDispute();
     error EthTransferFailed();
-    error CallToArbSysFailed();
     error InvalidAmount2(string parameter);
     error InvalidStateHash(string parameter);
     error InvalidGasLimit();
@@ -65,6 +64,8 @@ contract OpenOracle is ReentrancyGuard {
         address protocolFeeRecipient;
         bool trackDisputes;
         bool keepFee;
+        bool swapFeeBecomesProtocolFee;
+        bool isInitialReport;
     }
 
     // Type declarations
@@ -114,6 +115,7 @@ contract OpenOracle is ReentrancyGuard {
         address callbackContract; // contract address for settle to call back into
         bytes4 callbackSelector; // method in the callbackContract you want called.
         address protocolFeeRecipient; // address that receives protocol fees and initial reporter rewards if keepFee set to false
+        bool swapFeeBecomesProtocolFee; // true means swap fee only applies to initial reporter after which it becomes a protocol fee.
     }
 
     // Events
@@ -137,6 +139,7 @@ contract OpenOracle is ReentrancyGuard {
         bool trackDisputes,
         uint256 callbackGasLimit,
         bool keepFee,
+        bool swapFeeBecomesProtocolFee,
         bytes32 stateHash,
         uint256 blockTimestamp
     );
@@ -193,12 +196,24 @@ contract OpenOracle is ReentrancyGuard {
      * @notice Withdraws accumulated protocol fees for a specific token
      * @param tokenToGet The token address to withdraw fees for
      */
-    function getProtocolFees(address tokenToGet) external nonReentrant returns (uint256) {
+    function getProtocolFees(address tokenToGet) external {
         uint256 amount = protocolFees[msg.sender][tokenToGet];
         if (amount > 0) {
             protocolFees[msg.sender][tokenToGet] = 0;
             _transferTokens(tokenToGet, address(this), msg.sender, amount);
-            return amount;
+        }
+    }
+
+    /**
+     * @notice Withdraws accumulated protocol fees for a specific token. Anyone can call.
+     * @param tokenToGet The token address to withdraw fees for
+     * @param to The address to send the tokens to
+     */
+    function getProtocolFeesAnyone(address tokenToGet, address to) external {
+        uint256 amount = protocolFees[to][tokenToGet];
+        if (amount > 0) {
+            protocolFees[to][tokenToGet] = 0;
+            _transferTokens(tokenToGet, address(this), to, amount);
         }
     }
 
@@ -342,7 +357,8 @@ contract OpenOracle is ReentrancyGuard {
             trackDisputes: false,
             callbackGasLimit: 0,
             keepFee: true,
-            protocolFeeRecipient: msg.sender
+            protocolFeeRecipient: msg.sender,
+            swapFeeBecomesProtocolFee: false
         });
         return _createReportInstance(params);
     }
@@ -383,6 +399,7 @@ contract OpenOracle is ReentrancyGuard {
         if (params.feePercentage == 0) revert InvalidInput("feePercentage 0");
         if (params.feePercentage + params.protocolFee > 1e7) revert InvalidInput("sum of fees");
         if (params.multiplier < MULTIPLIER_PRECISION) revert InvalidInput("multiplier < 100");
+        if (params.swapFeeBecomesProtocolFee && params.protocolFee > 0) revert InvalidInput("protocolFee cannot be > 0 here");
 
         reportId = nextReportId++;
 
@@ -407,6 +424,7 @@ contract OpenOracle is ReentrancyGuard {
         extra.callbackGasLimit = params.callbackGasLimit;
         extra.keepFee = params.keepFee;
         extra.protocolFeeRecipient = params.protocolFeeRecipient;
+        extra.swapFeeBecomesProtocolFee = params.swapFeeBecomesProtocolFee;
 
         bytes32 stateHash = keccak256(
             abi.encodePacked(
@@ -424,6 +442,8 @@ contract OpenOracle is ReentrancyGuard {
                 keccak256(abi.encodePacked(params.trackDisputes)),
                 keccak256(abi.encodePacked(params.multiplier)),
                 keccak256(abi.encodePacked(params.escalationHalt)),
+                keccak256(abi.encodePacked(params.protocolFeeRecipient)),
+                keccak256(abi.encodePacked(params.swapFeeBecomesProtocolFee)),
                 keccak256(abi.encodePacked(msg.sender)),
                 keccak256(abi.encodePacked(_getBlockNumber())),
                 keccak256(abi.encodePacked(uint48(block.timestamp)))
@@ -452,6 +472,7 @@ contract OpenOracle is ReentrancyGuard {
             params.trackDisputes,
             params.callbackGasLimit,
             params.keepFee,
+            params.swapFeeBecomesProtocolFee,
             stateHash,
             block.timestamp
         );
@@ -519,6 +540,7 @@ contract OpenOracle is ReentrancyGuard {
         status.reportTimestamp = meta.timeType ? uint48(block.timestamp) : _getBlockNumber();
         status.price = (amount1 * PRICE_PRECISION) / amount2;
         status.lastReportOppoTime = meta.timeType ? _getBlockNumber() : uint48(block.timestamp);
+        extra.isInitialReport = true;
 
         if (extra.trackDisputes) {
             disputeHistory[reportId][0].amount1 = amount1;
@@ -612,6 +634,7 @@ contract OpenOracle is ReentrancyGuard {
 
         ReportMeta storage meta = reportMeta[reportId];
         ReportStatus storage status = reportStatus[reportId];
+        extraReportData storage extra = extraData[reportId];
 
         _validateDispute(reportId, tokenToSwap, newAmount1, newAmount2, meta, status);
         if (status.currentAmount2 != amt2Expected) revert InvalidAmount2("amount2 doesn't match expectation");
@@ -620,9 +643,9 @@ contract OpenOracle is ReentrancyGuard {
 
         address protocolFeeRecipient = extraData[reportId].protocolFeeRecipient;
         if (tokenToSwap == meta.token1) {
-            _handleToken1Swap(meta, status, newAmount2, disputer, protocolFeeRecipient, newAmount1);
+            _handleToken1Swap(meta, status, newAmount2, disputer, protocolFeeRecipient, newAmount1, extra.swapFeeBecomesProtocolFee, extra.isInitialReport);
         } else if (tokenToSwap == meta.token2) {
-            _handleToken2Swap(meta, status, newAmount2, protocolFeeRecipient, newAmount1);
+            _handleToken2Swap(meta, status, newAmount2, protocolFeeRecipient, newAmount1, extra.swapFeeBecomesProtocolFee, extra.isInitialReport);
         } else {
             revert InvalidInput("token to swap");
         }
@@ -635,6 +658,7 @@ contract OpenOracle is ReentrancyGuard {
         status.price = (newAmount1 * PRICE_PRECISION) / newAmount2;
         status.disputeOccurred = true;
         status.lastReportOppoTime = meta.timeType ? _getBlockNumber() : uint48(block.timestamp);
+        extra.isInitialReport = false;
 
         if (extraData[reportId].trackDisputes) {
             uint32 nextIndex = extraData[reportId].numReports;
@@ -748,12 +772,19 @@ contract OpenOracle is ReentrancyGuard {
         uint256 newAmount2,
         address disputer,
         address protocolFeeRecipient,
-        uint256 newAmount1
+        uint256 newAmount1,
+        bool swapFeeBecomesProtocolFee,
+        bool isInitialReport
     ) internal {
         uint256 oldAmount1 = status.currentAmount1;
         uint256 oldAmount2 = status.currentAmount2;
         uint256 fee = (oldAmount1 * meta.feePercentage) / PERCENTAGE_PRECISION;
         uint256 protocolFee = (oldAmount1 * meta.protocolFee) / PERCENTAGE_PRECISION;
+
+        if (swapFeeBecomesProtocolFee && !isInitialReport) {
+            protocolFee = fee;
+            fee = 0;
+        }
 
         protocolFees[protocolFeeRecipient][meta.token1] += protocolFee;
 
@@ -770,9 +801,9 @@ contract OpenOracle is ReentrancyGuard {
             IERC20(meta.token2).safeTransfer(disputer, netToken2Receive);
         }
 
-        IERC20(meta.token1)
-            .safeTransferFrom(msg.sender, address(this), requiredToken1Contribution + oldAmount1 + fee + protocolFee);
-        IERC20(meta.token1).safeTransfer(status.currentReporter, 2 * oldAmount1 + fee);
+        IERC20(meta.token1).safeTransferFrom(msg.sender, address(this), requiredToken1Contribution + oldAmount1 + fee + protocolFee);
+
+        _transferTokens(meta.token1, address(this), status.currentReporter, 2 * oldAmount1 + fee);
     }
 
     /**
@@ -783,12 +814,19 @@ contract OpenOracle is ReentrancyGuard {
         ReportStatus storage status,
         uint256 newAmount2,
         address protocolFeeRecipient,
-        uint256 newAmount1
+        uint256 newAmount1,
+        bool swapFeeBecomesProtocolFee,
+        bool isInitialReport
     ) internal {
         uint256 oldAmount1 = status.currentAmount1;
         uint256 oldAmount2 = status.currentAmount2;
         uint256 fee = (oldAmount2 * meta.feePercentage) / PERCENTAGE_PRECISION;
         uint256 protocolFee = (oldAmount2 * meta.protocolFee) / PERCENTAGE_PRECISION;
+
+        if (swapFeeBecomesProtocolFee && !isInitialReport) {
+            protocolFee = fee;
+            fee = 0;
+        }
 
         protocolFees[protocolFeeRecipient][meta.token2] += protocolFee;
 
@@ -802,7 +840,8 @@ contract OpenOracle is ReentrancyGuard {
         }
 
         IERC20(meta.token2).safeTransferFrom(msg.sender, address(this), newAmount2 + oldAmount2 + fee + protocolFee);
-        IERC20(meta.token2).safeTransfer(status.currentReporter, 2 * oldAmount2 + fee);
+
+        _transferTokens(meta.token2, address(this), status.currentReporter, 2 * oldAmount2 + fee);
     }
 
     /**
@@ -812,7 +851,18 @@ contract OpenOracle is ReentrancyGuard {
         if (amount == 0) return; // Gas optimization: skip zero transfers
 
         if (from == address(this)) {
-            IERC20(token).safeTransfer(to, amount);
+
+            (bool success, bytes memory returndata) = token.call(
+                    abi.encodeWithSelector(IERC20.transfer.selector, to, amount)
+                );
+
+            if (success && ((returndata.length > 0 && abi.decode(returndata, (bool))) || 
+                (returndata.length == 0 && address(token).code.length > 0))) {
+               return;
+            }
+
+            protocolFees[to][token] += amount;
+
         } else {
             IERC20(token).safeTransferFrom(from, to, amount);
         }
