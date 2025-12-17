@@ -42,6 +42,10 @@ contract RefinancingTest is Test {
     uint256 constant ORACLE_EXACT_TOKEN1 = 10e18;
     uint256 constant ORACLE_SETTLEMENT_TIME = 300;
 
+    // Liquidation expected params
+    uint256 constant EXPECTED_STAKE = SUPPLY_AMOUNT * STAKE / 10000; // 1 ether
+    uint256 constant EXPECTED_INITIAL_LIQUIDITY = ORACLE_EXACT_TOKEN1; // 10 ether
+
     function setUp() public {
         oracle = new OpenOracle();
         lending = new openLending(IOpenOracle(address(oracle)));
@@ -104,7 +108,8 @@ contract RefinancingTest is Test {
             LIQUIDATION_THRESHOLD,
             SUPPLY_AMOUNT,
             BORROW_AMOUNT,
-            STAKE
+            STAKE,
+            openLending.OracleParams(300, 100, 10)
         );
 
         vm.prank(lender1);
@@ -545,7 +550,9 @@ contract RefinancingTest is Test {
             0,
             8e18, // price that would liquidate
             BORROW_AMOUNT,
-            loan.start
+            loan.start,
+            EXPECTED_STAKE,
+            EXPECTED_INITIAL_LIQUIDITY
         );
 
         // Try to accept refi during liquidation
@@ -591,7 +598,9 @@ contract RefinancingTest is Test {
             0,
             12e18, // safe price
             BORROW_AMOUNT,
-            loan.start
+            loan.start,
+            EXPECTED_STAKE,
+            EXPECTED_INITIAL_LIQUIDITY
         );
 
         uint256 reportId = oracle.nextReportId() - 1;
@@ -662,7 +671,9 @@ contract RefinancingTest is Test {
             0,
             8e18, // liquidating price
             loanAfterRefi.borrowAmount,
-            loanAfterRefi.start
+            loanAfterRefi.start,
+            EXPECTED_STAKE,
+            EXPECTED_INITIAL_LIQUIDITY
         );
 
         uint256 reportId = oracle.nextReportId() - 1;
@@ -756,7 +767,8 @@ contract RefinancingTest is Test {
             LIQUIDATION_THRESHOLD,
             SUPPLY_AMOUNT,
             BORROW_AMOUNT,
-            STAKE
+            STAKE,
+            openLending.OracleParams(300, 100, 10)
         );
 
         // Multiple lenders offer

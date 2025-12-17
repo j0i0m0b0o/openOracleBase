@@ -89,7 +89,8 @@ contract HappyPathRefinancingTest is Test {
             LIQUIDATION_THRESHOLD,
             SUPPLY_AMOUNT,
             BORROW_AMOUNT,
-            STAKE
+            STAKE,
+            openLending.OracleParams(300, 100, 10)
         );
 
         // 2. Lender1 offers
@@ -461,7 +462,8 @@ contract HappyPathRefinancingTest is Test {
             LIQUIDATION_THRESHOLD,
             SUPPLY_AMOUNT,
             BORROW_AMOUNT,
-            STAKE
+            STAKE,
+            openLending.OracleParams(300, 100, 10)
         );
 
         vm.prank(lender1);

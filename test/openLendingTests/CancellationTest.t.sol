@@ -74,7 +74,8 @@ contract CancellationTest is Test {
             LIQUIDATION_THRESHOLD,
             SUPPLY_AMOUNT,
             BORROW_AMOUNT,
-            STAKE
+            STAKE,
+            openLending.OracleParams(300, 100, 10)
         );
     }
 

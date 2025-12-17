@@ -47,6 +47,10 @@ contract LiquidationTestRefi is Test {
     uint24 constant ORACLE_PROTOCOL_FEE = 100000; // 1%
     uint16 constant ORACLE_MULTIPLIER = 200;     // 2x
 
+    // Liquidation expected params
+    uint256 constant EXPECTED_STAKE = SUPPLY_AMOUNT * STAKE / 10000; // 1 ether
+    uint256 constant EXPECTED_INITIAL_LIQUIDITY = ORACLE_EXACT_TOKEN1; // 10 ether
+
     function setUp() public {
         oracle = new OpenOracle();
         lending = new openLending(IOpenOracle(address(oracle)));
@@ -160,7 +164,8 @@ contract LiquidationTestRefi is Test {
             LIQUIDATION_THRESHOLD,
             SUPPLY_AMOUNT,
             BORROW_AMOUNT,
-            STAKE
+            STAKE,
+            openLending.OracleParams(300, 100, 10)
         );
 
         // Step 2: Lender1 offers with allowAnyLiquidator = true
@@ -227,7 +232,9 @@ contract LiquidationTestRefi is Test {
             0,
             oracleAmount2,
             refiBorrowAmount,
-            loanBefore.start
+            loanBefore.start,
+            EXPECTED_STAKE,
+            EXPECTED_INITIAL_LIQUIDITY
         );
 
         // Verify in liquidation
@@ -360,7 +367,9 @@ contract LiquidationTestRefi is Test {
             0,
             oracleAmount2,
             refiBorrowAmount,
-            loanBefore.start
+            loanBefore.start,
+            EXPECTED_STAKE,
+            EXPECTED_INITIAL_LIQUIDITY
         );
 
         uint256 reportId = oracle.nextReportId() - 1;
@@ -453,7 +462,9 @@ contract LiquidationTestRefi is Test {
             0,
             oracleAmount2,
             refiBorrowAmount,
-            loanBefore.start
+            loanBefore.start,
+            EXPECTED_STAKE,
+            EXPECTED_INITIAL_LIQUIDITY
         );
 
         uint256 reportId = oracle.nextReportId() - 1;
@@ -523,7 +534,9 @@ contract LiquidationTestRefi is Test {
             0,
             oracleAmount2,
             refiBorrowAmount,
-            loanBefore.start
+            loanBefore.start,
+            EXPECTED_STAKE,
+            EXPECTED_INITIAL_LIQUIDITY
         );
 
         uint256 reportId = oracle.nextReportId() - 1;
@@ -645,7 +658,8 @@ contract LiquidationTestRefi is Test {
             LIQUIDATION_THRESHOLD,
             SUPPLY_AMOUNT,
             BORROW_AMOUNT,
-            STAKE
+            STAKE,
+            openLending.OracleParams(300, 100, 10)
         );
 
         // Lender1 offers with allowAnyLiquidator = true
@@ -690,7 +704,9 @@ contract LiquidationTestRefi is Test {
             0,
             8 ether,
             owedToLender1,
-            loan.start
+            loan.start,
+            EXPECTED_STAKE,
+            EXPECTED_INITIAL_LIQUIDITY
         );
 
         // Lender2 (current lender) can liquidate
@@ -701,7 +717,9 @@ contract LiquidationTestRefi is Test {
             0,
             8 ether,
             owedToLender1,
-            loan.start
+            loan.start,
+            EXPECTED_STAKE,
+            EXPECTED_INITIAL_LIQUIDITY
         );
 
         openLending.LendingView memory loanAfter = lending.getLending(lendingId);
@@ -728,7 +746,9 @@ contract LiquidationTestRefi is Test {
             0,
             8 ether,
             refiBorrowAmount,
-            loan.start
+            loan.start,
+            EXPECTED_STAKE,
+            EXPECTED_INITIAL_LIQUIDITY
         );
     }
 
@@ -750,7 +770,9 @@ contract LiquidationTestRefi is Test {
             0,
             8 ether,
             refiBorrowAmount,
-            loan.start
+            loan.start,
+            EXPECTED_STAKE,
+            EXPECTED_INITIAL_LIQUIDITY
         );
 
         // Try to repay - should fail
@@ -783,7 +805,9 @@ contract LiquidationTestRefi is Test {
             0,
             12 ether, // Safe price
             refiBorrowAmount,
-            loanBefore.start
+            loanBefore.start,
+            EXPECTED_STAKE,
+            EXPECTED_INITIAL_LIQUIDITY
         );
 
         uint256 reportId = oracle.nextReportId() - 1;
@@ -827,7 +851,9 @@ contract LiquidationTestRefi is Test {
             0,
             12 ether,
             refiBorrowAmount,
-            loanBefore.start
+            loanBefore.start,
+            EXPECTED_STAKE,
+            EXPECTED_INITIAL_LIQUIDITY
         );
 
         openLending.LendingView memory loanDuring = lending.getLending(lendingId);
@@ -874,7 +900,9 @@ contract LiquidationTestRefi is Test {
             0,
             12 ether,
             refiBorrowAmount,
-            loanBefore.start
+            loanBefore.start,
+            EXPECTED_STAKE,
+            EXPECTED_INITIAL_LIQUIDITY
         );
 
         uint256 reportId = oracle.nextReportId() - 1;
@@ -912,7 +940,9 @@ contract LiquidationTestRefi is Test {
             0,
             12 ether,
             refiBorrowAmount,
-            loanBefore.start
+            loanBefore.start,
+            EXPECTED_STAKE,
+            EXPECTED_INITIAL_LIQUIDITY
         );
 
         uint256 reportId = oracle.nextReportId() - 1;
@@ -959,7 +989,9 @@ contract LiquidationTestRefi is Test {
             0,
             12 ether,
             refiBorrowAmount,
-            loanBefore.start
+            loanBefore.start,
+            EXPECTED_STAKE,
+            EXPECTED_INITIAL_LIQUIDITY
         );
 
         uint256 reportId = oracle.nextReportId() - 1;
@@ -1009,7 +1041,9 @@ contract LiquidationTestRefi is Test {
             0,
             12 ether,
             refiBorrowAmount,
-            loanBefore.start
+            loanBefore.start,
+            EXPECTED_STAKE,
+            EXPECTED_INITIAL_LIQUIDITY
         );
 
         uint256 reportId = oracle.nextReportId() - 1;
@@ -1026,6 +1060,10 @@ contract LiquidationTestRefi is Test {
         uint256 tokenStake = SUPPLY_AMOUNT * STAKE / 10000;
         uint256 newSupplyAmount = SUPPLY_AMOUNT + tokenStake;
 
+        // Expected params based on new supply amount
+        uint256 newExpectedStake = newSupplyAmount * STAKE / 10000;
+        uint256 newExpectedInitialLiquidity = newSupplyAmount / 10;
+
         // Try to liquidate again - should fail
         vm.prank(liquidator);
         vm.expectRevert(abi.encodeWithSignature("InvalidInput(string)", "arrangement expired"));
@@ -1035,7 +1073,9 @@ contract LiquidationTestRefi is Test {
             0,
             8 ether,
             refiBorrowAmount,
-            loanAfter.start
+            loanAfter.start,
+            newExpectedStake,
+            newExpectedInitialLiquidity
         );
     }
 }

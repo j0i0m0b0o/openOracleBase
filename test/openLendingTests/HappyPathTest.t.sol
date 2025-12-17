@@ -98,7 +98,8 @@ contract HappyPathTest is Test {
             LIQUIDATION_THRESHOLD,
             SUPPLY_AMOUNT,
             BORROW_AMOUNT,
-            STAKE
+            STAKE,
+            openLending.OracleParams(300, 100, 10)
         );
 
         assertEq(lendingId, 1, "First lending ID should be 1");
@@ -234,7 +235,8 @@ contract HappyPathTest is Test {
             LIQUIDATION_THRESHOLD,
             SUPPLY_AMOUNT,
             BORROW_AMOUNT,
-            STAKE
+            STAKE,
+            openLending.OracleParams(300, 100, 10)
         );
 
         vm.prank(lender);
@@ -309,7 +311,8 @@ contract HappyPathTest is Test {
             LIQUIDATION_THRESHOLD,
             SUPPLY_AMOUNT,
             BORROW_AMOUNT,
-            STAKE
+            STAKE,
+            openLending.OracleParams(300, 100, 10)
         );
 
         vm.prank(lender);
@@ -387,7 +390,8 @@ contract HappyPathTest is Test {
             LIQUIDATION_THRESHOLD,
             SUPPLY_AMOUNT,
             0, // amountDemanded = 0
-            STAKE
+            STAKE,
+            openLending.OracleParams(300, 100, 10)
         );
     }
 
@@ -405,7 +409,8 @@ contract HappyPathTest is Test {
             LIQUIDATION_THRESHOLD,
             0, // supplyAmount = 0
             BORROW_AMOUNT,
-            STAKE
+            STAKE,
+            openLending.OracleParams(300, 100, 10)
         );
     }
 
@@ -422,7 +427,8 @@ contract HappyPathTest is Test {
             LIQUIDATION_THRESHOLD,
             SUPPLY_AMOUNT,
             BORROW_AMOUNT,
-            STAKE
+            STAKE,
+            openLending.OracleParams(300, 100, 10)
         );
 
         vm.prank(lender);
