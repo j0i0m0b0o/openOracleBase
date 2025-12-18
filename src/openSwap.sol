@@ -117,6 +117,7 @@ contract openSwap is ReentrancyGuard {
         if (s.matched) revert InvalidInput("swap matched");
         if (!s.active) revert InvalidInput("swap not active");
         if (s.finished) revert InvalidInput("finished");
+        if (block.timestamp > s.expiration) revert InvalidInput("expired");
 
         s.matched = true;
         s.matcher = msg.sender;
