@@ -22,6 +22,7 @@ import {IBounty} from "./interfaces/IBounty.sol";
  //TODO: add slippage protection for matcher
  //TODO: swapper can choose oracle initial liquidity
  //TODO: initial report latency bail-out option
+ //TODO: oracleFeeReceiver contract + optional protocol fees split 50/50 by seller and buyer.
  //THIS CONTRACT IS JUST A SKETCH SO FAR
 contract openSwap is ReentrancyGuard {
     using SafeERC20 for IERC20;
