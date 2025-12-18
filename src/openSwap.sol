@@ -20,6 +20,7 @@ import {IBounty} from "./interfaces/IBounty.sol";
  //TODO: rescue funds if settle executed but callback bricked
  //TODO: _transferTokens like oracle contract for erc20 transfer brick handling
  //TODO: add slippage protection for matcher
+ //TODO: swapper can choose oracle initial liquidity
  //THIS CONTRACT IS JUST A SKETCH SO FAR
 contract openSwap is ReentrancyGuard {
     using SafeERC20 for IERC20;
