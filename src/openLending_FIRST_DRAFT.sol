@@ -9,7 +9,6 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 
 /* ------------ openLending v1 ------------ */
 // Uses openOracle: https://openprices.gitbook.io/openoracle-docs/openoracle
-// TODO: some way to let ppl grab oracle game protocol fees before settlement? just make the protocol fee sweep an internal function and should be easy
 // TODO: improve grace period mechanics in context of variable settlement time (300 currently hard coded as part of the input)
 // TODO: explore design space where borrower can withdraw repaid debt or excess collateral prior to end of term or refinancing via openOracle
 //       how would this interact with liquidation oracle game to prevent bad outcomes for lender
@@ -102,6 +101,7 @@ contract openLending is ReentrancyGuard {
         mapping(uint256 => LendingOffers) lendingOffers;
         mapping(uint256 => mapping(uint256 => RefiLendingOffers)) refiLendingOffers;
         mapping(uint256 => bool) refiNonceAccepted;
+        mapping(address => Beneficiaries) feeRecipientToBeneficiaries;
     }
 
     struct LendingOffers {
@@ -138,6 +138,12 @@ contract openLending is ReentrancyGuard {
         uint16 initialLiquidity; // fraction of supplyAmount for oracle game initial liquidity in token1, 10 = 10%.
     }
 
+    struct Beneficiaries {
+        address lender;
+        address borrower;
+        address liquidator;
+    }
+
     event BorrowRequested(address indexed borrower, uint256 indexed lendingId, address supplyToken, address borrowToken, uint256 supplyAmount, uint24 liquidationThreshold, uint256 offerExpiration, uint256 stake, OracleParams oracleParams);
     event BorrowOffered(address indexed lender, uint256 indexed lendingId, uint256 amount, uint32 rate);
     event RefiBorrowOffered(address indexed lender, uint256 indexed lendingId, uint32 rate, uint256 refiNonce, uint256 refiOfferNumber);
@@ -146,7 +152,7 @@ contract openLending is ReentrancyGuard {
     event RefiBorrowOfferCancelled(uint256 lendingId, uint256 refiOfferNumber, uint256 refiNonce);
     event OfferAccepted(uint256 lendingId, uint256 offerNumber);
     event RefiOfferAccepted(uint256 lendingId, uint256 refiOfferNumber, uint256 refiNonce);
-    event LoanLiquidationUnderway(uint256 lendingId, uint256 reportId);
+    event LoanLiquidationUnderway(uint256 lendingId, uint256 reportId, address feeRecipient);
     event DebtRepaid(uint256 lendingId, uint256 amount);
     event CollateralToppedOff(uint256 lendingId, uint256 amount);
     event CollateralClaimedByLender(uint256 lendingId, uint256 supplyTokenClaimed, uint256 borrowTokenClaimed);
@@ -676,6 +682,10 @@ contract openLending is ReentrancyGuard {
         lending.liquidationStart = uint48(block.timestamp);
         lending.liquidator = msg.sender;
 
+        lending.feeRecipientToBeneficiaries[lending.feeRecipient].lender = lending.lender;
+        lending.feeRecipientToBeneficiaries[lending.feeRecipient].borrower = lending.borrower;
+        lending.feeRecipientToBeneficiaries[lending.feeRecipient].liquidator = lending.liquidator;
+
         uint256 reportId = oracle.createReportInstance{value: msg.value}(
             params
         );
@@ -695,7 +705,7 @@ contract openLending is ReentrancyGuard {
         IERC20(lending.supplyToken).forceApprove(address(oracle), 0);
         IERC20(lending.borrowToken).forceApprove(address(oracle), 0);
 
-        emit LoanLiquidationUnderway(lendingId, reportId);
+        emit LoanLiquidationUnderway(lendingId, reportId, lending.feeRecipient);
     }
 
    /* -------- oracle callback -------- */
@@ -763,7 +773,12 @@ contract openLending is ReentrancyGuard {
             emit LiqUnsuccessful(lendingId);
         }
 
-        oracleFeeReceiver feeReceiver = oracleFeeReceiver(lending.feeRecipient);
+        grabOracleGameFees(lending, lending.feeRecipient);
+
+    }
+
+    function grabOracleGameFees(LendingArrangement storage lending, address feeRecipient) internal {
+        oracleFeeReceiver feeReceiver = oracleFeeReceiver(feeRecipient);
 
         try feeReceiver.collect() {} catch{}
 
@@ -781,18 +796,33 @@ contract openLending is ReentrancyGuard {
         uint256 lenderSupplyFeePiece = borrowerSupplyFeePiece / 2;
         uint256 liquidatorSupplyFeePiece = feesSupply - borrowerSupplyFeePiece - lenderSupplyFeePiece;
 
-        _transferTokens(lending.supplyToken, address(this), lending.borrower, borrowerSupplyFeePiece);
-        _transferTokens(lending.supplyToken, address(this), lending.lender, lenderSupplyFeePiece);
-        _transferTokens(lending.supplyToken, address(this), lending.liquidator, liquidatorSupplyFeePiece);
+        address borrower = lending.feeRecipientToBeneficiaries[feeRecipient].borrower;
+        address lender = lending.feeRecipientToBeneficiaries[feeRecipient].lender;
+        address liquidator = lending.feeRecipientToBeneficiaries[feeRecipient].liquidator;
+
+        _transferTokens(lending.supplyToken, address(this), borrower, borrowerSupplyFeePiece);
+        _transferTokens(lending.supplyToken, address(this), lender, lenderSupplyFeePiece);
+        _transferTokens(lending.supplyToken, address(this), liquidator, liquidatorSupplyFeePiece);
 
         uint256 borrowerBorrowFeePiece = feesBorrow / 2;
         uint256 lenderBorrowFeePiece = borrowerBorrowFeePiece / 2;
         uint256 liquidatorBorrowFeePiece = feesBorrow - borrowerBorrowFeePiece - lenderBorrowFeePiece;
 
-        _transferTokens(lending.borrowToken, address(this), lending.borrower, borrowerBorrowFeePiece);
-        _transferTokens(lending.borrowToken, address(this), lending.lender, lenderBorrowFeePiece);
-        _transferTokens(lending.borrowToken, address(this), lending.liquidator, liquidatorBorrowFeePiece);
+        _transferTokens(lending.borrowToken, address(this), borrower, borrowerBorrowFeePiece);
+        _transferTokens(lending.borrowToken, address(this), lender, lenderBorrowFeePiece);
+        _transferTokens(lending.borrowToken, address(this), liquidator, liquidatorBorrowFeePiece);
 
+    }
+
+    /**
+     * @notice Anyone can distribute protocol fees from a given feeRecipient contract.
+               Eventual oracle game callback should always clear these tokens out anyways.
+     * @param lendingId Unique identification number of lending instance
+     */
+    function grabOracleGameFeesAny(uint256 lendingId, address feeRecipient) external nonReentrant {
+        LendingArrangement storage lending = lendingArrangements[lendingId];
+        if (oracleFeeReceiver(feeRecipient).lendingId() != lendingId) revert InvalidInput("feeRecipient not for lendingId");
+        grabOracleGameFees(lending, feeRecipient);
     }
 
     /**
@@ -902,6 +932,10 @@ contract openLending is ReentrancyGuard {
 
     function getOracleParams(uint256 lendingId) external view returns (OracleParams memory) {
         return lendingArrangements[lendingId].oracleParams;
+    }
+
+    function getBeneficiaries(uint256 lendingId, address feeRecipient) external view returns (Beneficiaries memory) {
+        return lendingArrangements[lendingId].feeRecipientToBeneficiaries[feeRecipient];
     }
 
     function getLendingOffer(uint256 lendingId, uint256 offerNumber) external view returns (LendingOffers memory) {
