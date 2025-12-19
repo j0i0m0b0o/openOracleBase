@@ -28,6 +28,7 @@ import {IBounty} from "./interfaces/IBounty.sol";
 
  //TODO: oracleFeeReceiver contract + optional protocol fees split 50/50 by seller and buyer.
  //TODO: optional max slippage ignored by matcher (but applies to swapper) for blind firing? maybe too complex
+ //TODO: max oracle game time parameter, can bail out if past that
  //THIS CONTRACT IS JUST A SKETCH SO FAR
  
 contract openSwap is ReentrancyGuard {
