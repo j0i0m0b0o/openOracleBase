@@ -38,6 +38,7 @@ contract OpenSwapMinOutTest is Test {
     uint24 constant SWAP_FEE = 3000;
     uint24 constant PROTOCOL_FEE = 1000;
     uint48 constant LATENCY_BAILOUT = 600;
+    uint48 constant MAX_GAME_TIME = 7200;
 
     // Swap params
     uint256 constant SELL_AMT = 10e18;
@@ -83,6 +84,7 @@ contract OpenSwapMinOutTest is Test {
             escalationHalt: SELL_AMT * 2,
             settlementTime: SETTLEMENT_TIME,
             latencyBailout: LATENCY_BAILOUT,
+            maxGameTime: MAX_GAME_TIME,
             disputeDelay: DISPUTE_DELAY,
             swapFee: SWAP_FEE,
             protocolFee: PROTOCOL_FEE
@@ -187,6 +189,7 @@ contract OpenSwapMinOutTest is Test {
             escalationHalt: SELL_AMT * 2,
             settlementTime: SETTLEMENT_TIME,
             latencyBailout: LATENCY_BAILOUT,
+            maxGameTime: MAX_GAME_TIME,
             disputeDelay: DISPUTE_DELAY,
             swapFee: SWAP_FEE,
             protocolFee: PROTOCOL_FEE

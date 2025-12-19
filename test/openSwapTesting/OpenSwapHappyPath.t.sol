@@ -27,6 +27,8 @@ contract OpenSwapHappyPathTest is Test {
     uint24 constant DISPUTE_DELAY = 5;
     uint24 constant SWAP_FEE = 3000; // 0.03%
     uint24 constant PROTOCOL_FEE = 1000; // 0.01%
+    uint48 constant LATENCY_BAILOUT = 600;
+    uint48 constant MAX_GAME_TIME = 7200;
 
     // Swap params
     uint256 constant SELL_AMT = 10e18;
@@ -95,7 +97,8 @@ contract OpenSwapHappyPathTest is Test {
             initialLiquidity: INITIAL_LIQUIDITY,
             escalationHalt: SELL_AMT * 2,
             settlementTime: SETTLEMENT_TIME,
-            latencyBailout: 600,
+            latencyBailout: LATENCY_BAILOUT,
+            maxGameTime: MAX_GAME_TIME,
             disputeDelay: DISPUTE_DELAY,
             swapFee: SWAP_FEE,
             protocolFee: PROTOCOL_FEE
