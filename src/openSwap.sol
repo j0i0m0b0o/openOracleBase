@@ -12,6 +12,8 @@ import {IBounty} from "./interfaces/IBounty.sol";
  * @title openSwap
  * @notice Uses openOracle for swap execution
            Different from simpleSwapper since there's no choice about fulfilling or not
+           simpleSwapper flow is deposit sellToken -> oracle game ends in price -> anyone has choice to swap against that price
+           openSwap flow is deposit sellToken -> someone matches with enough buyToken -> oracle game ends in price -> swap executed against price
  * @author OpenOracle Team
  * @custom:version 0.1.6
  * @custom:documentation https://openprices.gitbook.io/openoracle-docs
