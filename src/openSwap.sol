@@ -219,9 +219,10 @@ contract openSwap is ReentrancyGuard {
         nonReentrant
     {
         if (msg.sender != address(oracle)) revert InvalidInput("invalid sender");
-        Swap storage s = swaps[id];
-        if (id != swaps[reportIdToSwapId[id]].reportId) revert InvalidInput("wrong reportId");
-
+        uint256 swapId = reportIdToSwapId[id];
+        Swap storage s = swaps[swapId];
+        if (id != s.reportId) revert InvalidInput("wrong reportId");
+        if (s.finished) revert InvalidInput("finished");
         s.finished = true;
 
         IOpenOracle.ReportStatus memory rs = oracle.reportStatus(id);
