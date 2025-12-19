@@ -78,9 +78,7 @@ contract OpenOracleTest is BaseTest {
         uint256 recipientBalanceBefore = token1.balanceOf(protocolFeeRecipient);
 
         vm.prank(protocolFeeRecipient);
-        uint256 withdrawnAmount = oracle.getProtocolFees(address(token1));
-
-        assertEq(withdrawnAmount, expectedProtocolFee, "Withdrawn amount incorrect");
+        oracle.getProtocolFees(address(token1));
         assertEq(
             token1.balanceOf(protocolFeeRecipient),
             recipientBalanceBefore + expectedProtocolFee,
@@ -164,12 +162,13 @@ contract OpenOracleTest is BaseTest {
         assertEq(oracle.accruedProtocolFees(protocolFeeRecipient), 0, "ETH protocol fees not reset");
     }
 
-    // Withdrawing token protocol fees when none accrued returns 0
+    // Withdrawing token protocol fees when none accrued does nothing
     function testGetProtocolFeesWithZeroBalance() public {
         // Test withdrawing when no fees have accrued
+        uint256 balanceBefore = token1.balanceOf(protocolFeeRecipient);
         vm.prank(protocolFeeRecipient);
-        uint256 withdrawn = oracle.getProtocolFees(address(token1));
-        assertEq(withdrawn, 0, "Should return 0 when no fees accrued");
+        oracle.getProtocolFees(address(token1));
+        assertEq(token1.balanceOf(protocolFeeRecipient), balanceBefore, "Balance should not change when no fees accrued");
     }
 
     // Withdrawing ETH protocol fees when none accrued returns 0
@@ -218,15 +217,18 @@ contract OpenOracleTest is BaseTest {
         vm.prank(alice);
         oracle.disputeAndSwap(reportId, address(token1), 1.1e18, 2100e18, 2000e18, stateHash);
 
-        // Try to withdraw as non-recipient (should get 0 since alice has no accrued fees)
+        // Try to withdraw as non-recipient (should do nothing since alice has no accrued fees)
+        uint256 aliceBalanceBefore = token1.balanceOf(alice);
         vm.prank(alice);
-        uint256 withdrawn = oracle.getProtocolFees(address(token1));
-        assertEq(withdrawn, 0, "Non-recipient should not be able to withdraw fees");
+        oracle.getProtocolFees(address(token1));
+        assertEq(token1.balanceOf(alice), aliceBalanceBefore, "Non-recipient balance should not change");
 
         // Verify recipient can withdraw their fees
+        uint256 recipientBalanceBefore = token1.balanceOf(protocolFeeRecipient);
+        uint256 expectedFee = oracle.protocolFees(protocolFeeRecipient, address(token1));
         vm.prank(protocolFeeRecipient);
-        uint256 recipientWithdrawn = oracle.getProtocolFees(address(token1));
-        assertGt(recipientWithdrawn, 0, "Recipient should be able to withdraw fees");
+        oracle.getProtocolFees(address(token1));
+        assertEq(token1.balanceOf(protocolFeeRecipient), recipientBalanceBefore + expectedFee, "Recipient should receive exact protocol fee");
     }
 
     // ------------------------------------------------------------------------
