@@ -186,8 +186,6 @@ contract OpenOracle is ReentrancyGuard {
 
     event SettlementCallbackExecuted(uint256 indexed reportId, address indexed callbackContract, bool success);
 
-    event ToxicFundsEjected(address indexed token, address indexed to, address airlock, uint256 amount);
-
     constructor() ReentrancyGuard() {}
 
     /**
