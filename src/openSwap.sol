@@ -11,9 +11,14 @@ import {IBounty} from "./interfaces/IBounty.sol";
 /**
  * @title openSwap
  * @notice Uses openOracle for swap execution
-           Different from simpleSwapper since there's no choice about fulfilling or not
+           Different from simpleSwapper since there's no choice about whether to fulfill
            simpleSwapper flow is deposit sellToken -> oracle game ends in price -> anyone has choice to swap against that price
            openSwap flow is deposit sellToken -> someone matches with enough buyToken -> oracle game ends in price -> swap executed against price
+           In general it is our belief that this swapping method may offer extremely cheap mean swap execution costs so it is worth pursuing.
+           The design is compatible with long round times (settlementTime) in the oracle game, since manipulating the oracle is the same game at any time scale:
+                      https://openprices.gitbook.io/openoracle-docs/contents/considerations#manipulation-without-a-swap-fee
+           The bias scales with something like the square root of the settlementTime.
+           This means it is hard to bias the mean finalized oracle price much off from true, even if the matcher in this contract is doing their best.
  * @author OpenOracle Team
  * @custom:version 0.1.6
  * @custom:documentation https://openprices.gitbook.io/openoracle-docs
