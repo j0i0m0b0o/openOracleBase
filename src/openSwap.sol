@@ -27,7 +27,7 @@ import {oracleFeeReceiver} from "./oracleFeeReceiver.sol";
  * @custom:documentation https://openprices.gitbook.io/openoracle-docs
  */
 
- //TODO: oracleFeeReceiver contract + optional protocol fees split 50/50 by seller and buyer.
+ //TODO: fixed gasCompensation paid to matcher by swapper? separates linear costs from fixed
  //TODO: optional max slippage ignored by matcher (but applies to swapper) for blind firing? maybe too complex
  //THIS CONTRACT IS JUST A SKETCH SO FAR
  
