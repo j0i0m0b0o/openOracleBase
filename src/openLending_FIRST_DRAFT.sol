@@ -12,6 +12,7 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 // TODO: improve grace period mechanics in context of variable settlement time (300 currently hard coded as part of the input)
 // TODO: explore design space where borrower can withdraw repaid debt or excess collateral prior to end of term or refinancing via openOracle
 //       how would this interact with liquidation oracle game to prevent bad outcomes for lender
+// TODO: double check price request to oracle can never revert
 
 contract oracleFeeReceiver is ReentrancyGuard {
     using SafeERC20 for IERC20;
