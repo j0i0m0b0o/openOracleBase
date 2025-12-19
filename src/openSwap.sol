@@ -7,6 +7,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {IOpenOracle} from "./interfaces/IOpenOracle.sol";
 import {IWETH} from "./interfaces/IWETH.sol";
 import {IBounty} from "./interfaces/IBounty.sol";
+import {oracleFeeReceiver} from "./oracleFeeReceiver.sol";
 
 /**
  * @title openSwap
@@ -28,7 +29,6 @@ import {IBounty} from "./interfaces/IBounty.sol";
 
  //TODO: oracleFeeReceiver contract + optional protocol fees split 50/50 by seller and buyer.
  //TODO: optional max slippage ignored by matcher (but applies to swapper) for blind firing? maybe too complex
- //TODO: max oracle game time parameter, can bail out if past that
  //THIS CONTRACT IS JUST A SKETCH SO FAR
  
 contract openSwap is ReentrancyGuard {
@@ -65,6 +65,7 @@ contract openSwap is ReentrancyGuard {
         address buyToken; // address for token swapper wants
         address swapper; // msg.sender of swapper
         address matcher; // msg.sender of matcher
+        address feeRecipient;
         bool active; // true means swap created
         bool matched; // true means swap matched by matcher
         bool finished; // true means swap finished
@@ -79,6 +80,7 @@ contract openSwap is ReentrancyGuard {
         uint256 escalationHalt; // amount of sellToken at which oracle game stops escalating
         uint48 settlementTime; // round length in seconds of oracle game
         uint48 latencyBailout; // the swap can be can cancelled and refunded after this number of seconds pass with a matched swap but no oracle game initial report 
+        uint48 maxGameTime; // if oracle game takes longer than this time in seconds, refund available
         uint24 disputeDelay; // disputes must wait this long in seconds after the last report to fire in the oracle game
         uint24 swapFee; // 1000 = 0.01%, swap fee amount paid to prior reporter in oracle game
         uint24 protocolFee; // 1000 = 0.01%, percentage levied of each swap in oracle game for protocolFeeRecipient's benefit.
@@ -127,6 +129,7 @@ contract openSwap is ReentrancyGuard {
             || oracleParams.escalationHalt < oracleParams.initialLiquidity
             || oracleParams.settlementTime > 4 * 60 * 60
             || oracleParams.swapFee + oracleParams.protocolFee >= 1e7
+            || oracleParams.maxGameTime < oracleParams.settlementTime * 20
             ) revert InvalidInput("oracleParams");
 
         swapId = nextSwapId++;
@@ -178,6 +181,16 @@ contract openSwap is ReentrancyGuard {
 
         if(s.buyToken != address(0)) {
             IERC20(s.buyToken).safeTransferFrom(msg.sender, address(this), s.minFulfillLiquidity);
+        }
+
+        if (s.oracleParams.protocolFee > 0){
+            address sellToken;
+            address buyToken;
+
+            s.sellToken == address(0) ? sellToken = WETH : sellToken = s.sellToken;
+            s.buyToken == address(0) ? buyToken = WETH : buyToken = s.buyToken;
+            oracleFeeReceiver feeReceiver = new oracleFeeReceiver(address(this), swapId, address(oracle), sellToken, buyToken);
+            s.feeRecipient = address(feeReceiver);
         }
 
         bounty.createOracleBountyFwd{value: s.requiredBounty}(
@@ -257,7 +270,7 @@ contract openSwap is ReentrancyGuard {
             keepFee: true,
             callbackContract: address(this),
             callbackSelector: this.onSettle.selector,
-            protocolFeeRecipient: address(0) // make this a feerecipient contract
+            protocolFeeRecipient: s.feeRecipient
         });
 
         /* ------------ create report instance ------------ */
@@ -306,6 +319,10 @@ contract openSwap is ReentrancyGuard {
             }
         }
 
+        if (s.oracleParams.protocolFee > 0) {
+            grabOracleGameFees(s, s.feeRecipient);
+        }
+
         // maxRounds > 0 checks if bounty exists for this reportId
         IBounty.Bounties memory b = bounty.Bounty(id);
         if (b.maxRounds > 0 && !b.recalled) {
@@ -322,7 +339,6 @@ contract openSwap is ReentrancyGuard {
                     2. latencyBailout time in seconds has passed without an oracle initial report
      * @param swapId Unique identifier of swapping instance
     */
-
     function bailOut(uint256 swapId) external nonReentrant {
         Swap storage s = swaps[swapId];
         IOpenOracle.ReportStatus memory rs = oracle.reportStatus(s.reportId);
@@ -339,7 +355,9 @@ contract openSwap is ReentrancyGuard {
         isLatent = block.timestamp > s.start + latency;
         isLatent = isLatent && (rs.reportTimestamp == 0);
 
-        if (rs.isDistributed && !s.finished || isLatent){
+        bool isGameTooLong = block.timestamp - s.start > s.oracleParams.maxGameTime;
+
+        if (rs.isDistributed && !s.finished || isLatent || isGameTooLong){
             s.finished = true;
 
             IBounty.Bounties memory b = bounty.Bounty(s.reportId);
@@ -349,6 +367,21 @@ contract openSwap is ReentrancyGuard {
 
             refund(s.sellToken, s.sellAmt, s.swapper, s.buyToken, s.minFulfillLiquidity, s.matcher);
         }
+    }
+
+    /**
+     * @notice Anyone can distribute protocol fees from a given feeRecipient contract.
+               Eventual oracle game callback should always clear these tokens out anyways.
+     * @param swapId Unique identification number of swapping instance
+     * @param feeRecipient Oracle game protocolFeeRecipient
+     */
+    function grabOracleGameFeesAny(uint256 swapId, address feeRecipient) external nonReentrant {
+        Swap storage s = swaps[swapId];
+        if (oracleFeeReceiver(feeRecipient).gameId() != swapId) revert InvalidInput("feeRecipient not for swapId");
+        if (s.oracleParams.protocolFee == 0) revert InvalidInput("0 protocol fee");
+        if (!s.matched) revert InvalidInput("not matched");
+
+        grabOracleGameFees(s, feeRecipient);
     }
 
     function payEth(address _to, uint256 _amount) internal {
@@ -424,6 +457,39 @@ contract openSwap is ReentrancyGuard {
         } else {
             return (price - priceTolerated) <= maxDiff;
         }
+    }
+
+    function grabOracleGameFees(Swap storage s, address feeRecipient) internal {
+        oracleFeeReceiver feeReceiver = oracleFeeReceiver(feeRecipient);
+        address sellToken;
+        address buyToken;
+
+        s.sellToken == address(0) ? sellToken = WETH : sellToken = s.sellToken; 
+        s.buyToken == address(0) ? buyToken = WETH : buyToken = s.buyToken; 
+
+        try feeReceiver.collect() {} catch{}
+
+        uint256 sellBalanceStart = IERC20(sellToken).balanceOf(address(this));
+        try feeReceiver.sweep(sellToken) {} catch{}
+        uint256 sellBalanceEnd = IERC20(sellToken).balanceOf(address(this));
+        uint256 feesSellToken = sellBalanceEnd > sellBalanceStart ? sellBalanceEnd - sellBalanceStart : 0;
+
+        uint256 buyBalanceStart = IERC20(buyToken).balanceOf(address(this));
+        try feeReceiver.sweep(buyToken) {} catch{}
+        uint256 buyBalanceEnd = IERC20(buyToken).balanceOf(address(this));
+        uint256 feesBuyToken = buyBalanceEnd > buyBalanceStart ? buyBalanceEnd - buyBalanceStart : 0;
+
+        uint256 swapperSellFeePiece = feesSellToken / 2;
+        uint256 matcherSellFeePiece = feesSellToken - swapperSellFeePiece;
+
+        _transferTokens(sellToken, address(this), s.swapper, swapperSellFeePiece);
+        _transferTokens(sellToken, address(this), s.matcher, matcherSellFeePiece);
+
+        uint256 swapperBuyFeePiece = feesBuyToken / 2;
+        uint256 matcherBuyFeePiece = feesBuyToken - swapperBuyFeePiece;
+
+        _transferTokens(buyToken, address(this), s.swapper, swapperBuyFeePiece);
+        _transferTokens(buyToken, address(this), s.matcher, matcherBuyFeePiece);
     }
 
     /* -------- VIEW FUNCTIONS -------- */
