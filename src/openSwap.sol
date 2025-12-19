@@ -49,7 +49,7 @@ contract openSwap is ReentrancyGuard {
     uint256 public nextSwapId = 1;
 
     mapping (uint256 => uint256) public reportIdToSwapId;
-    mapping(address => mapping(address => uint256)) public tempHolding;
+    mapping (address => mapping(address => uint256)) public tempHolding;
 
     struct Swap {
         uint256 sellAmt; // amount of tokens the swapper is selling
