@@ -29,6 +29,7 @@ import {oracleFeeReceiver} from "./oracleFeeReceiver.sol";
 
  //TODO: fixed gasCompensation paid to matcher by swapper? separates linear costs from fixed
  //TODO: make the fulfillment fee a capped increasing bounty
+ //TODO: add overload swap() with gasCompensation capped at 0.05 eth, other overload can be free to choose
  //TODO: optional max slippage ignored by matcher (but applies to swapper) for blind firing? maybe too complex
  //THIS CONTRACT IS JUST A SKETCH SO FAR
  
@@ -54,25 +55,27 @@ contract openSwap is ReentrancyGuard {
     mapping (address => mapping(address => uint256)) public tempHolding;
 
     struct Swap {
-        uint256 sellAmt; // amount of tokens the swapper is selling
-        uint256 minOut; // minimum tokens out when finished or contract refunds
+        uint256 sellAmt; // amount of sellToken the swapper is selling
+        uint256 minOut; // minimum tokens to swapper of buyToken when finished aside from full refunds
         uint256 minFulfillLiquidity; // minimum amount of buyToken the matcher must put in the contract
         uint256 expiration; // timestamp at which swapper's swap can no longer be matched
-        uint256 fulfillmentFee; // 1000 = 0.01%, fee paid to matcher
-        uint256 requiredBounty; // max reward for oracle game initial reporter. bounty increases over time up to this number
+        uint256 requiredBounty; // max reward in wei for oracle game initial reporter. bounty increases over time up to this number
         uint256 reportId; // oracle game reportId
+        uint256 gasCompensation; // swapper pays matcher this amount of wei to call match
         uint48 start; // timestamp at which order is matched
+        uint24 fulfillmentFee; // 1000 = 0.01%, fee paid to matcher
         address sellToken; // address for token swapper is selling
         address buyToken; // address for token swapper wants
         address swapper; // msg.sender of swapper
         address matcher; // msg.sender of matcher
-        address feeRecipient;
+        address feeRecipient; // contract holding protocol fees from oracle game
         bool active; // true means swap created
         bool matched; // true means swap matched by matcher
         bool finished; // true means swap finished
         bool cancelled; // true means swap cancelled by swapper
         OracleParams oracleParams;
         SlippageParams slippageParams;
+        FulfillFeeParams fulfillFeeParams;
     }
 
     struct OracleParams {
@@ -90,11 +93,21 @@ contract openSwap is ReentrancyGuard {
     struct SlippageParams {
         uint256 priceTolerated; // one of two max slippage inputs. current price at time of swap, formatted as priceTolerated = 225073570923495617630012810 => (1e30 / priceTolerated) = $4442.99 for WETH/USDC trading (sellToken WETH/ETH buyToken USDC)
                                 //should match oracle game price calculation (respecting PRICE_PRECISION semantics)
-        uint24 toleranceRange; // 100000 = 1% max slippage against priceTolerated
+        uint24 toleranceRange; // 100000 = 1%, max slippage against priceTolerated
     }
 
-    event SwapCreated(uint256 indexed swapId, uint256 sellAmt, address sellToken, uint256 minOut, address buyToken, uint256 minFulfillLiquidity, uint256 expiration, uint256 fulfillmentFee, uint256 priceTolerated, uint256 toleranceRange, uint256 blockTimestamp);
+    struct FulfillFeeParams {
+        uint48 startFulfillFeeIncrease; // timestamp at which order is created
+        uint24 maxFee; // 1000 = 0.01%, max fulfillment fee you can pay
+        uint24 startingFee; // 1000 = 0.01%, starting fee level
+        uint24 roundLength; // round length in seconds
+        uint16 growthRate; // 15000 = 1.5x per round
+        uint16 maxRounds; // max rounds of increase
+    }
+
+    event SwapCreated(uint256 indexed swapId, uint256 sellAmt, address sellToken, uint256 minOut, address buyToken, uint256 minFulfillLiquidity, uint256 expiration, uint256 priceTolerated, uint256 toleranceRange, FulfillFeeParams fulfillFeeParams, uint256 blockTimestamp);
     event SwapCancelled(uint256 swapId);
+    event SingleFee(uint256 swapId, uint256 fulfillmentFee);
 
     /**
      * @notice Creates a swap, sending sellAmt of sellToken into the contract.
@@ -104,15 +117,15 @@ contract openSwap is ReentrancyGuard {
      * @param buyToken Token address to buy
      * @param minFulfillLiquidity Matcher must supply this amount of buyToken. Should include a buffer above market price to prevent refunds.
      * @param expiration Timestamp when swap can no longer be matched.
-     * @param fulfillmentFee Fee paid to matcher, 1000 = 0.01%
      * @param bountyAmount Max amount paid to initial reporter. Minimum paid is bountyAmount / 10 and increases over time up to bountyAmount.
      * @param oracleParams Oracle game parameters: see OracleParams for comments
      * @param slippageParams Slippage parameters: see SlippageParams for comments
+     * @param fulfillFeeParams Fulfillment fee parameters: see FulfillFeeParams for comments
      * @return swapId The final settled price
      */
-    function swap(uint256 sellAmt, address sellToken, uint256 minOut, address buyToken, uint256 minFulfillLiquidity, uint256 expiration, uint256 fulfillmentFee, uint256 bountyAmount, OracleParams memory oracleParams, SlippageParams memory slippageParams) external payable nonReentrant returns(uint256 swapId) {
+    function swap(uint256 sellAmt, address sellToken, uint256 minOut, address buyToken, uint256 minFulfillLiquidity, uint256 expiration, uint256 bountyAmount, uint256 gasCompensation, OracleParams memory oracleParams, SlippageParams memory slippageParams, FulfillFeeParams memory fulfillFeeParams) external payable nonReentrant returns(uint256 swapId) {
         uint256 settlerReward = oracleParams.settlerReward;
-        uint256 extraEth = bountyAmount + settlerReward + 1;
+        uint256 extraEth = gasCompensation + bountyAmount + settlerReward + 1;
         if (sellToken != address(0) && msg.value != extraEth) revert InvalidInput("selling eth but no msg.value");
         if (sellToken == address(0) && msg.value != sellAmt + extraEth) revert InvalidInput("msg.value vs sellAmt mismatch");
 
@@ -120,7 +133,7 @@ contract openSwap is ReentrancyGuard {
         if (sellToken == WETH && buyToken == address(0) || sellToken == address(0) && buyToken == WETH) revert InvalidInput("sellToken = buyToken");
 
         if (sellAmt == 0 || minOut == 0 || minFulfillLiquidity == 0) revert InvalidInput("zero amounts");
-        if (fulfillmentFee >= 1e7) revert InvalidInput("fulfillmentFee");
+        if (fulfillFeeParams.maxFee >= 1e7) revert InvalidInput("fulfillmentFee");
 
         if (oracleParams.settlerReward < 100
             || oracleParams.swapFee == 0 
@@ -133,6 +146,15 @@ contract openSwap is ReentrancyGuard {
             || oracleParams.maxGameTime < oracleParams.settlementTime * 20
             ) revert InvalidInput("oracleParams");
 
+        if (fulfillFeeParams.maxFee == 0
+            || fulfillFeeParams.startingFee == 0
+            || fulfillFeeParams.growthRate == 0
+            || fulfillFeeParams.maxRounds == 0
+            || fulfillFeeParams.roundLength == 0
+            || fulfillFeeParams.maxFee < fulfillFeeParams.startingFee
+            || fulfillFeeParams.maxFee > 1e7
+            ) revert InvalidInput("fulfillFeeParams");
+
         swapId = nextSwapId++;
         Swap storage s = swaps[swapId];
 
@@ -143,17 +165,23 @@ contract openSwap is ReentrancyGuard {
         s.buyToken = buyToken;
         s.minFulfillLiquidity =  minFulfillLiquidity;
         s.expiration = expiration;
-        s.fulfillmentFee = fulfillmentFee;
         s.active = true;
         s.requiredBounty = bountyAmount;
         s.oracleParams = oracleParams;
         s.slippageParams = slippageParams;
+        s.gasCompensation = gasCompensation;
+        s.fulfillFeeParams = fulfillFeeParams;
+        s.fulfillFeeParams.startFulfillFeeIncrease = uint48(block.timestamp);
 
         if (sellToken != address(0)) {
             IERC20(sellToken).safeTransferFrom(msg.sender, address(this), sellAmt);
         }
 
-        emit SwapCreated(swapId, sellAmt, sellToken, minOut, buyToken, minFulfillLiquidity, expiration, fulfillmentFee, slippageParams.priceTolerated, slippageParams.toleranceRange, block.timestamp);
+        emit SwapCreated(swapId, sellAmt, sellToken, minOut, buyToken, minFulfillLiquidity, expiration, slippageParams.priceTolerated, slippageParams.toleranceRange, s.fulfillFeeParams, block.timestamp);
+        if (fulfillFeeParams.maxFee == fulfillFeeParams.startingFee && fulfillFeeParams.maxRounds == 1) {
+            emit SingleFee(swapId, fulfillFeeParams.maxFee);
+        }
+
     }
 
     /**
@@ -164,7 +192,7 @@ contract openSwap is ReentrancyGuard {
     */
     function matchSwap(uint256 swapId, bytes32 paramHashExpected) external payable nonReentrant {
         Swap storage s = swaps[swapId];
-
+        FulfillFeeParams memory f = s.fulfillFeeParams;
         if (paramHashExpected != keccak256(abi.encode(s))) revert InvalidInput("params");
 
         if (s.buyToken != address(0) && msg.value != 0) revert InvalidInput("selling eth but no msg.value");
@@ -179,12 +207,15 @@ contract openSwap is ReentrancyGuard {
         s.matched = true;
         s.matcher = msg.sender;
         s.start = uint48(block.timestamp);
+        s.fulfillmentFee = uint24(calcFee(f.maxFee, f.startingFee, f.growthRate, f.maxRounds, f.startFulfillFeeIncrease, f.roundLength));
+
+        payEth(msg.sender, s.gasCompensation);
 
         if(s.buyToken != address(0)) {
             IERC20(s.buyToken).safeTransferFrom(msg.sender, address(this), s.minFulfillLiquidity);
         }
 
-        if (s.oracleParams.protocolFee > 0){
+        if (s.oracleParams.protocolFee > 0) {
             address sellToken;
             address buyToken;
 
@@ -194,7 +225,7 @@ contract openSwap is ReentrancyGuard {
             s.feeRecipient = address(feeReceiver);
         }
 
-        bounty.createOracleBountyFwd{value: s.requiredBounty}(
+        bounty.createOracleBountyFwd{value: s.requiredBounty} (
             oracle.nextReportId(),
             s.requiredBounty / 20,
             s.swapper,
@@ -230,9 +261,9 @@ contract openSwap is ReentrancyGuard {
 
         if (s.sellToken != address(0)) {
             IERC20(s.sellToken).safeTransfer(msg.sender, s.sellAmt);
-            payEth(s.swapper, s.requiredBounty + o.settlerReward + 1);
+            payEth(s.swapper, s.gasCompensation + s.requiredBounty + o.settlerReward + 1);
         } else {
-            payEth(s.swapper, s.sellAmt + s.requiredBounty + o.settlerReward + 1);
+            payEth(s.swapper, s.sellAmt + s.gasCompensation + s.requiredBounty + o.settlerReward + 1);
         }
 
         emit SwapCancelled(swapId);
@@ -385,6 +416,18 @@ contract openSwap is ReentrancyGuard {
         grabOracleGameFees(s, feeRecipient);
     }
 
+    /**
+     * @notice Withdraws temp holdings for a specific token
+     * @param tokenToGet The token address to withdraw tokens for
+     */
+    function getTempHolding(address tokenToGet, address _to) external nonReentrant {
+        uint256 amount = tempHolding[_to][tokenToGet];
+        if (amount > 0) {
+            tempHolding[_to][tokenToGet] = 0;
+            _transferTokens(tokenToGet, address(this), _to, amount);
+        }
+    }
+
     function payEth(address _to, uint256 _amount) internal {
         (bool ok,) = payable(_to).call{value: _amount, gas: 40000}("");
         if (!ok) {
@@ -431,16 +474,24 @@ contract openSwap is ReentrancyGuard {
         }
     }
 
-    /**
-     * @notice Withdraws temp holdings for a specific token
-     * @param tokenToGet The token address to withdraw tokens for
-     */
-    function getTempHolding(address tokenToGet, address _to) external nonReentrant {
-        uint256 amount = tempHolding[_to][tokenToGet];
-        if (amount > 0) {
-            tempHolding[_to][tokenToGet] = 0;
-            _transferTokens(tokenToGet, address(this), _to, amount);
+    function calcFee(uint256 maxFee, uint256 startingFee, uint256 growthRate, uint256 maxRounds, uint256 startFulfillFeeIncrease, uint256 roundLength) internal view returns (uint256) {
+        uint256 timeDelta = block.timestamp - startFulfillFeeIncrease;
+        
+        timeDelta = timeDelta / roundLength;
+        if (timeDelta > maxRounds) {
+            timeDelta = maxRounds;
         }
+
+        uint256 currentFee = startingFee;
+
+        for (uint256 i = 0; i < timeDelta; i++) {
+            currentFee = (currentFee * growthRate) / 10000;
+            if (currentFee >= maxFee) {
+                return maxFee;
+            }
+        }
+        
+        return currentFee;
     }
     
     // can maybe make this log-symmetric but just keep it simple for now
@@ -517,6 +568,30 @@ contract openSwap is ReentrancyGuard {
      */
     function getSlippageParams(uint256 swapId) external view returns (SlippageParams memory) {
         return swaps[swapId].slippageParams;
+    }
+
+    /**
+     * @notice Returns fulfillment fee parameters for a given swapId
+     * @param swapId Unique identifier of swapping instance
+     */
+    function getFulfillmentFeeParams(uint256 swapId) external view returns (FulfillFeeParams memory) {
+        return swaps[swapId].fulfillFeeParams;
+    }
+
+    /**
+     * @notice Returns the current fulfillment fee for a given swapId based on time elapsed
+     * @dev Returns 0 if swap is already matched, otherwise calculates current fee
+     * @param swapId Unique identifier of swapping instance
+     */
+    function getCurrentFulfillmentFee(uint256 swapId) external view returns (uint256) {
+        Swap storage s = swaps[swapId];
+
+        if (s.matched) {
+            return 0;
+        }
+
+        FulfillFeeParams memory f = s.fulfillFeeParams;
+        return calcFee(f.maxFee, f.startingFee, f.growthRate, f.maxRounds, f.startFulfillFeeIncrease, f.roundLength);
     }
 
     /**
