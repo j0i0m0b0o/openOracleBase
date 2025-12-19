@@ -18,7 +18,7 @@ import {IBounty} from "./interfaces/IBounty.sol";
            The design is compatible with long round times (settlementTime) in the oracle game, since manipulating the oracle is the same game at any time scale:
                       https://openprices.gitbook.io/openoracle-docs/contents/considerations#manipulation-without-a-swap-fee
            The bias scales with something like the square root of the settlementTime.
-           This means it is hard to bias the mean finalized oracle price much off from true, even if the matcher in this contract is doing their best.
+           It is hard to bias the mean finalized oracle price much off from true, even if the matcher in this contract is doing their best.
  * @author OpenOracle Team
  * @custom:version 0.1.6
  * @custom:documentation https://openprices.gitbook.io/openoracle-docs
