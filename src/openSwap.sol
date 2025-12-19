@@ -26,14 +26,8 @@ import {IBounty} from "./interfaces/IBounty.sol";
  * @custom:documentation https://openprices.gitbook.io/openoracle-docs
  */
 
- //TODO: rescue funds if settle executed but callback bricked - done
- //TODO: _transferTokens like oracle contract for erc20 transfer brick handling - done
- //TODO: add slippage protection for matcher - done
- //TODO: swapper can choose oracle initial liquidity - done
- //TODO: initial report latency bail-out option - done
  //TODO: oracleFeeReceiver contract + optional protocol fees split 50/50 by seller and buyer.
- //TODO: change bounty payer to swapper - done
- //TODO: make sure initial reporter & min wei semantics in oracle contract are reflected in this contract. initial reporter reward = msg.value - settlerReward.
+ //TODO: optional max slippage ignored by matcher (but applies to swapper) for blind firing? maybe too complex
  //THIS CONTRACT IS JUST A SKETCH SO FAR
  
 contract openSwap is ReentrancyGuard {
@@ -58,35 +52,35 @@ contract openSwap is ReentrancyGuard {
     mapping(address => mapping(address => uint256)) public tempHolding;
 
     struct Swap {
-        uint256 sellAmt;
-        uint256 minOut;
-        uint256 minFulfillLiquidity;
-        uint256 expiration;
-        uint256 fulfillmentFee;
-        uint256 requiredBounty;
-        uint256 reportId;
-        uint48 start;
-        address sellToken;
-        address buyToken;
-        address swapper;
-        address matcher;
-        bool active;
-        bool matched;
-        bool finished;
-        bool cancelled;
+        uint256 sellAmt; // amount of tokens the swapper is selling
+        uint256 minOut; // minimum tokens out when finished or contract refunds
+        uint256 minFulfillLiquidity; // minimum amount of buyToken the matcher must put in the contract
+        uint256 expiration; // timestamp at which swapper's swap can no longer be matched
+        uint256 fulfillmentFee; // 1000 = 0.01%, fee paid to matcher
+        uint256 requiredBounty; // max reward for oracle game initial reporter. bounty increases over time up to this number
+        uint256 reportId; // oracle game reportId
+        uint48 start; // timestamp at which order is matched
+        address sellToken; // address for token swapper is selling
+        address buyToken; // address for token swapper wants
+        address swapper; // msg.sender of swapper
+        address matcher; // msg.sender of matcher
+        bool active; // true means swap created
+        bool matched; // true means swap matched by matcher
+        bool finished; // true means swap finished
+        bool cancelled; // true means swap cancelled by swapper
         OracleParams oracleParams;
         SlippageParams slippageParams;
     }
 
     struct OracleParams {
-        uint256 settlerReward;
-        uint256 initialLiquidity;
-        uint256 escalationHalt;
-        uint48 settlementTime;
-        uint48 latencyBailout;
-        uint24 disputeDelay;
-        uint24 swapFee;
-        uint24 protocolFee;
+        uint256 settlerReward; // settler reward in oracle game. settle function executes the swap.
+        uint256 initialLiquidity; // oracle game initial liquidity in sellToken
+        uint256 escalationHalt; // amount of sellToken at which oracle game stops escalating
+        uint48 settlementTime; // round length in seconds of oracle game
+        uint48 latencyBailout; // the swap can be can cancelled and refunded after this number of seconds pass with a matched swap but no oracle game initial report 
+        uint24 disputeDelay; // disputes must wait this long in seconds after the last report to fire in the oracle game
+        uint24 swapFee; // 1000 = 0.01%, swap fee amount paid to prior reporter in oracle game
+        uint24 protocolFee; // 1000 = 0.01%, percentage levied of each swap in oracle game for protocolFeeRecipient's benefit.
     }
 
     struct SlippageParams {
@@ -98,6 +92,20 @@ contract openSwap is ReentrancyGuard {
     event SwapCreated(uint256 indexed swapId, uint256 sellAmt, address sellToken, uint256 minOut, address buyToken, uint256 minFulfillLiquidity, uint256 expiration, uint256 fulfillmentFee, uint256 priceTolerated, uint256 toleranceRange, uint256 blockTimestamp);
     event SwapCancelled(uint256 swapId);
 
+    /**
+     * @notice Creates a swap, sending sellAmt of sellToken into the contract.
+     * @param sellAmt Amount of sellToken to sell
+     * @param sellToken Token address to sell
+     * @param minOut Minimum amount of buyToken to receive
+     * @param buyToken Token address to buy
+     * @param minFulfillLiquidity Matcher must supply this amount of buyToken. Should include a buffer above market price to prevent refunds.
+     * @param expiration Timestamp when swap can no longer be matched.
+     * @param fulfillmentFee Fee paid to matcher, 1000 = 0.01%
+     * @param bountyAmount Max amount paid to initial reporter. Minimum paid is bountyAmount / 10 and increases over time up to bountyAmount.
+     * @param oracleParams Oracle game parameters: see OracleParams for comments
+     * @param slippageParams Slippage parameters: see SlippageParams for comments
+     * @return swapId The final settled price
+     */
     function swap(uint256 sellAmt, address sellToken, uint256 minOut, address buyToken, uint256 minFulfillLiquidity, uint256 expiration, uint256 fulfillmentFee, uint256 bountyAmount, OracleParams memory oracleParams, SlippageParams memory slippageParams) external payable nonReentrant returns(uint256 swapId) {
         uint256 settlerReward = oracleParams.settlerReward;
         uint256 extraEth = bountyAmount + settlerReward + 1;
@@ -143,8 +151,16 @@ contract openSwap is ReentrancyGuard {
         emit SwapCreated(swapId, sellAmt, sellToken, minOut, buyToken, minFulfillLiquidity, expiration, fulfillmentFee, slippageParams.priceTolerated, slippageParams.toleranceRange, block.timestamp);
     }
 
-    function matchSwap(uint256 swapId) external payable nonReentrant {
+    /**
+     * @notice Matcher matches swap, sending tokens into contract.
+     * @param swapId Unique identifier of swapping instance
+     * @param paramHashExpected Hash of Swap struct expected. Helps protect against adversarial RPCs.
+                                Checks against keccak256(abi.encode(swaps[swapId]))
+    */
+    function matchSwap(uint256 swapId, bytes32 paramHashExpected) external payable nonReentrant {
         Swap storage s = swaps[swapId];
+
+        if (paramHashExpected != keccak256(abi.encode(s))) revert InvalidInput("params");
 
         if (s.buyToken != address(0) && msg.value != 0) revert InvalidInput("selling eth but no msg.value");
         if (s.buyToken == address(0) && msg.value != s.minFulfillLiquidity) revert InvalidInput("msg.value");
@@ -180,6 +196,11 @@ contract openSwap is ReentrancyGuard {
 
     }
 
+    /**
+     * @notice Swapper cancels swap, receiving tokens back.
+               Must be called prior to match.
+     * @param swapId Unique identifier of swapping instance
+    */
     function cancelSwap(uint256 swapId) external nonReentrant {
         Swap storage s = swaps[swapId];
         OracleParams memory o = s.oracleParams;
@@ -202,7 +223,7 @@ contract openSwap is ReentrancyGuard {
         emit SwapCancelled(swapId);
     }
 
-    function oracleGame(Swap memory s) internal nonReentrant returns (uint256 reportId) {
+    function oracleGame(Swap memory s) internal returns (uint256 reportId) {
         OracleParams memory o = s.oracleParams;
         address token1;
         address token2;
@@ -291,6 +312,15 @@ contract openSwap is ReentrancyGuard {
         }
 
     }
+
+    /**
+     * @notice Lets users bail out of a swapId and both swapper and matcher receive tokens back.
+               Anyone-can-call.
+               Two bailout conditions:
+                    1. reportId distributed but swapId not finished
+                    2. latencyBailout time in seconds has passed without an oracle initial report
+     * @param swapId Unique identifier of swapping instance
+    */
 
     function bailOut(uint256 swapId) external nonReentrant {
         Swap storage s = swaps[swapId];
