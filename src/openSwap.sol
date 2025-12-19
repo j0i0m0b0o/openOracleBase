@@ -19,6 +19,8 @@ import {IBounty} from "./interfaces/IBounty.sol";
                       https://openprices.gitbook.io/openoracle-docs/contents/considerations#manipulation-without-a-swap-fee
            The bias scales with something like the square root of the settlementTime.
            It is hard to bias the mean finalized oracle price much off from true, even if the matcher in this contract is doing their best.
+           The geometry of the dispute barriers in the oracle game ensures very low survival probabilites for any prices reported off true.
+           The closer you get to true, the lower the extraction. Farther from true, the survival probabilities approach 0 much faster than extraction increases.
  * @author OpenOracle Team
  * @custom:version 0.1.6
  * @custom:documentation https://openprices.gitbook.io/openoracle-docs
