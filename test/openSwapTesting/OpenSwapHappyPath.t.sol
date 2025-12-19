@@ -236,4 +236,3 @@ contract OpenSwapHappyPathTest is Test {
         console.log("Settler reward:", SETTLER_REWARD);
     }
 }
-
