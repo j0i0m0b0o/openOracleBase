@@ -40,7 +40,14 @@ contract OpenSwapETHTest is Test {
     uint256 constant SELL_AMT = 1 ether;
     uint256 constant MIN_OUT = 1900e18;
     uint256 constant MIN_FULFILL_LIQUIDITY = 2500e18;
-    uint256 constant FULFILLMENT_FEE = 10000;
+    uint256 constant GAS_COMPENSATION = 0.001 ether;
+
+    // FulfillFeeParams
+    uint24 constant MAX_FEE = 10000;
+    uint24 constant STARTING_FEE = 10000;
+    uint24 constant ROUND_LENGTH = 60;
+    uint16 constant GROWTH_RATE = 15000;
+    uint16 constant MAX_ROUNDS = 10;
 
     function setUp() public {
         // Deploy mock WETH and use vm.etch to put it at the WETH address
@@ -102,11 +109,22 @@ contract OpenSwapETHTest is Test {
         });
     }
 
+    function _getFulfillFeeParams() internal pure returns (openSwap.FulfillFeeParams memory) {
+        return openSwap.FulfillFeeParams({
+            startFulfillFeeIncrease: 0,
+            maxFee: MAX_FEE,
+            startingFee: STARTING_FEE,
+            roundLength: ROUND_LENGTH,
+            growthRate: GROWTH_RATE,
+            maxRounds: MAX_ROUNDS
+        });
+    }
+
     // ============ ETH → ERC20 Tests ============
 
     function testETHToToken_CreateSwap() public {
         uint256 swapperEthBefore = swapper.balance;
-        uint256 ethToSend = SELL_AMT + BOUNTY_AMOUNT + SETTLER_REWARD + 1;
+        uint256 ethToSend = SELL_AMT + GAS_COMPENSATION + BOUNTY_AMOUNT + SETTLER_REWARD + 1;
 
         vm.startPrank(swapper);
 
@@ -117,17 +135,18 @@ contract OpenSwapETHTest is Test {
             address(token),
             MIN_FULFILL_LIQUIDITY,
             block.timestamp + 1 hours,
-            FULFILLMENT_FEE,
             BOUNTY_AMOUNT,
+            GAS_COMPENSATION,
             _getOracleParams(),
-            _getSlippageParams()
+            _getSlippageParams(),
+            _getFulfillFeeParams()
         );
 
         vm.stopPrank();
 
         // Verify ETH transferred
         assertEq(swapper.balance, swapperEthBefore - ethToSend, "Swapper should have sent ETH");
-        // Contract holds sellAmt + bounty + settlerReward + 1 (bounty forwarded on match)
+        // Contract holds sellAmt + bounty + settlerReward + gasComp + 1 (bounty forwarded on match)
         assertEq(address(swapContract).balance, ethToSend, "Contract should hold all ETH until match");
 
         // Verify swap state
@@ -142,7 +161,7 @@ contract OpenSwapETHTest is Test {
         uint256 swapperTokenBefore = token.balanceOf(swapper);
         uint256 matcherTokenBefore = token.balanceOf(matcher);
         uint256 matcherEthBefore = matcher.balance;
-        uint256 ethToSend = SELL_AMT + BOUNTY_AMOUNT + SETTLER_REWARD + 1;
+        uint256 ethToSend = SELL_AMT + GAS_COMPENSATION + BOUNTY_AMOUNT + SETTLER_REWARD + 1;
 
         // Create swap: ETH → Token
         vm.startPrank(swapper);
@@ -153,10 +172,11 @@ contract OpenSwapETHTest is Test {
             address(token),
             MIN_FULFILL_LIQUIDITY,
             block.timestamp + 1 hours,
-            FULFILLMENT_FEE,
             BOUNTY_AMOUNT,
+            GAS_COMPENSATION,
             _getOracleParams(),
-            _getSlippageParams()
+            _getSlippageParams(),
+            _getFulfillFeeParams()
         );
         vm.stopPrank();
 
@@ -186,20 +206,20 @@ contract OpenSwapETHTest is Test {
         openSwap.Swap memory sAfter = swapContract.getSwap(swapId);
         assertTrue(sAfter.finished, "Swap should be finished");
 
-        // Calculate expected fulfillAmt
+        // Calculate expected fulfillAmt (uses startingFee since matched immediately)
         uint256 fulfillAmt = (SELL_AMT * 2000e18) / INITIAL_LIQUIDITY;
-        fulfillAmt -= fulfillAmt * FULFILLMENT_FEE / 1e7;
+        fulfillAmt -= fulfillAmt * STARTING_FEE / 1e7;
 
         // Swapper should have received tokens (initial balance + fulfillAmt)
         assertEq(token.balanceOf(swapper), swapperTokenBefore + fulfillAmt, "Swapper should have received tokens");
 
-        // Matcher should have received ETH (sellAmt)
-        assertEq(matcher.balance, matcherEthBefore + SELL_AMT, "Matcher should have received ETH");
+        // Matcher should have received ETH (sellAmt + gasCompensation)
+        assertEq(matcher.balance, matcherEthBefore + SELL_AMT + GAS_COMPENSATION, "Matcher should have received ETH + gasComp");
     }
 
     function testETHToToken_Cancel() public {
         uint256 swapperEthBefore = swapper.balance;
-        uint256 ethToSend = SELL_AMT + BOUNTY_AMOUNT + SETTLER_REWARD + 1;
+        uint256 ethToSend = SELL_AMT + GAS_COMPENSATION + BOUNTY_AMOUNT + SETTLER_REWARD + 1;
 
         vm.startPrank(swapper);
         uint256 swapId = swapContract.swap{value: ethToSend}(
@@ -209,10 +229,11 @@ contract OpenSwapETHTest is Test {
             address(token),
             MIN_FULFILL_LIQUIDITY,
             block.timestamp + 1 hours,
-            FULFILLMENT_FEE,
             BOUNTY_AMOUNT,
+            GAS_COMPENSATION,
             _getOracleParams(),
-            _getSlippageParams()
+            _getSlippageParams(),
+            _getFulfillFeeParams()
         );
 
         // Cancel
@@ -228,7 +249,7 @@ contract OpenSwapETHTest is Test {
 
     function testTokenToETH_CreateSwap() public {
         uint256 swapperTokenBefore = token.balanceOf(swapper);
-        uint256 ethToSend = BOUNTY_AMOUNT + SETTLER_REWARD + 1;
+        uint256 ethToSend = GAS_COMPENSATION + BOUNTY_AMOUNT + SETTLER_REWARD + 1;
 
         vm.startPrank(swapper);
 
@@ -239,10 +260,11 @@ contract OpenSwapETHTest is Test {
             address(0), // buyToken = ETH
             1 ether, // minFulfillLiquidity in ETH
             block.timestamp + 1 hours,
-            FULFILLMENT_FEE,
             BOUNTY_AMOUNT,
+            GAS_COMPENSATION,
             _getOracleParams(),
-            _getSlippageParams()
+            _getSlippageParams(),
+            _getFulfillFeeParams()
         );
 
         vm.stopPrank();
@@ -259,7 +281,7 @@ contract OpenSwapETHTest is Test {
 
     function testTokenToETH_MatchWithETH() public {
         uint256 matcherEthBefore = matcher.balance;
-        uint256 ethToSend = BOUNTY_AMOUNT + SETTLER_REWARD + 1;
+        uint256 ethToSend = GAS_COMPENSATION + BOUNTY_AMOUNT + SETTLER_REWARD + 1;
         uint256 minFulfillETH = 1 ether;
 
         vm.startPrank(swapper);
@@ -270,10 +292,11 @@ contract OpenSwapETHTest is Test {
             address(0),
             minFulfillETH,
             block.timestamp + 1 hours,
-            FULFILLMENT_FEE,
             BOUNTY_AMOUNT,
+            GAS_COMPENSATION,
             _getOracleParams(),
-            _getSlippageParams()
+            _getSlippageParams(),
+            _getFulfillFeeParams()
         );
         vm.stopPrank();
 
@@ -283,8 +306,8 @@ contract OpenSwapETHTest is Test {
         swapContract.matchSwap{value: minFulfillETH}(swapId, swapHash);
         vm.stopPrank();
 
-        // Verify matcher sent ETH
-        assertEq(matcher.balance, matcherEthBefore - minFulfillETH, "Matcher should have sent ETH");
+        // Verify matcher sent ETH (minus gasCompensation they receive)
+        assertEq(matcher.balance, matcherEthBefore - minFulfillETH + GAS_COMPENSATION, "Matcher should have sent ETH (minus gasComp received)");
 
         openSwap.Swap memory s = swapContract.getSwap(swapId);
         assertTrue(s.matched, "Swap should be matched");
@@ -294,7 +317,7 @@ contract OpenSwapETHTest is Test {
     function testTokenToETH_FullFlow() public {
         uint256 matcherTokenBefore = token.balanceOf(matcher);
         uint256 swapperEthBefore = swapper.balance;
-        uint256 ethToSend = BOUNTY_AMOUNT + SETTLER_REWARD + 1;
+        uint256 ethToSend = GAS_COMPENSATION + BOUNTY_AMOUNT + SETTLER_REWARD + 1;
         uint256 minFulfillETH = 1 ether;
         uint256 sellAmtTokens = 10e18;
 
@@ -307,10 +330,11 @@ contract OpenSwapETHTest is Test {
             address(0),
             minFulfillETH,
             block.timestamp + 1 hours,
-            FULFILLMENT_FEE,
             BOUNTY_AMOUNT,
+            GAS_COMPENSATION,
             _getOracleParams(),
-            _getSlippageParams()
+            _getSlippageParams(),
+            _getFulfillFeeParams()
         );
         vm.stopPrank();
 
@@ -342,9 +366,9 @@ contract OpenSwapETHTest is Test {
         openSwap.Swap memory sAfter = swapContract.getSwap(swapId);
         assertTrue(sAfter.finished, "Swap should be finished");
 
-        // Calculate expected fulfillAmt in ETH
+        // Calculate expected fulfillAmt in ETH (uses startingFee since matched immediately)
         uint256 fulfillAmt = (sellAmtTokens * 5e16) / INITIAL_LIQUIDITY;
-        fulfillAmt -= fulfillAmt * FULFILLMENT_FEE / 1e7;
+        fulfillAmt -= fulfillAmt * STARTING_FEE / 1e7;
 
         // Bounty recall: totalDeposited - bountyClaimed
         // bountyClaimed = bountyStartAmt (since claimed same block, 0 rounds)
@@ -362,30 +386,31 @@ contract OpenSwapETHTest is Test {
     // ============ ETH msg.value Validation Tests ============
 
     function testETHToToken_WrongMsgValue_Reverts() public {
-        uint256 ethToSend = SELL_AMT + BOUNTY_AMOUNT + SETTLER_REWARD + 1;
+        uint256 ethToSend = SELL_AMT + GAS_COMPENSATION + BOUNTY_AMOUNT + SETTLER_REWARD + 1;
 
         vm.startPrank(swapper);
 
         // Send wrong amount (missing sellAmt)
         vm.expectRevert(abi.encodeWithSelector(openSwap.InvalidInput.selector, "msg.value vs sellAmt mismatch"));
-        swapContract.swap{value: BOUNTY_AMOUNT + SETTLER_REWARD + 1}(
+        swapContract.swap{value: GAS_COMPENSATION + BOUNTY_AMOUNT + SETTLER_REWARD + 1}(
             SELL_AMT,
             address(0),
             MIN_OUT,
             address(token),
             MIN_FULFILL_LIQUIDITY,
             block.timestamp + 1 hours,
-            FULFILLMENT_FEE,
             BOUNTY_AMOUNT,
+            GAS_COMPENSATION,
             _getOracleParams(),
-            _getSlippageParams()
+            _getSlippageParams(),
+            _getFulfillFeeParams()
         );
 
         vm.stopPrank();
     }
 
     function testTokenToETH_MatchWrongMsgValue_Reverts() public {
-        uint256 ethToSend = BOUNTY_AMOUNT + SETTLER_REWARD + 1;
+        uint256 ethToSend = GAS_COMPENSATION + BOUNTY_AMOUNT + SETTLER_REWARD + 1;
         uint256 minFulfillETH = 1 ether;
 
         vm.startPrank(swapper);
@@ -396,10 +421,11 @@ contract OpenSwapETHTest is Test {
             address(0),
             minFulfillETH,
             block.timestamp + 1 hours,
-            FULFILLMENT_FEE,
             BOUNTY_AMOUNT,
+            GAS_COMPENSATION,
             _getOracleParams(),
-            _getSlippageParams()
+            _getSlippageParams(),
+            _getFulfillFeeParams()
         );
         vm.stopPrank();
 
@@ -421,7 +447,7 @@ contract OpenSwapETHTest is Test {
         vm.prank(matcher);
         otherToken.approve(address(swapContract), type(uint256).max);
 
-        uint256 ethToSend = BOUNTY_AMOUNT + SETTLER_REWARD + 1;
+        uint256 ethToSend = GAS_COMPENSATION + BOUNTY_AMOUNT + SETTLER_REWARD + 1;
 
         vm.startPrank(swapper);
         uint256 swapId = swapContract.swap{value: ethToSend}(
@@ -431,10 +457,11 @@ contract OpenSwapETHTest is Test {
             address(otherToken),
             100e18,
             block.timestamp + 1 hours,
-            FULFILLMENT_FEE,
             BOUNTY_AMOUNT,
+            GAS_COMPENSATION,
             _getOracleParams(),
-            _getSlippageParams()
+            _getSlippageParams(),
+            _getFulfillFeeParams()
         );
         vm.stopPrank();
 
@@ -452,7 +479,7 @@ contract OpenSwapETHTest is Test {
 
     function testETHToToken_BailOut() public {
         uint256 matcherTokenBefore = token.balanceOf(matcher);
-        uint256 ethToSend = SELL_AMT + BOUNTY_AMOUNT + SETTLER_REWARD + 1;
+        uint256 ethToSend = SELL_AMT + GAS_COMPENSATION + BOUNTY_AMOUNT + SETTLER_REWARD + 1;
 
         // Create and match
         vm.startPrank(swapper);
@@ -463,10 +490,11 @@ contract OpenSwapETHTest is Test {
             address(token),
             MIN_FULFILL_LIQUIDITY,
             block.timestamp + 1 hours,
-            FULFILLMENT_FEE,
             BOUNTY_AMOUNT,
+            GAS_COMPENSATION,
             _getOracleParams(),
-            _getSlippageParams()
+            _getSlippageParams(),
+            _getFulfillFeeParams()
         );
         vm.stopPrank();
 
@@ -494,7 +522,7 @@ contract OpenSwapETHTest is Test {
     function testTokenToETH_BailOut() public {
         uint256 swapperTokenBefore = token.balanceOf(swapper);
         uint256 matcherEthBefore = matcher.balance;
-        uint256 ethToSend = BOUNTY_AMOUNT + SETTLER_REWARD + 1;
+        uint256 ethToSend = GAS_COMPENSATION + BOUNTY_AMOUNT + SETTLER_REWARD + 1;
         uint256 minFulfillETH = 1 ether;
 
         // Create and match
@@ -506,10 +534,11 @@ contract OpenSwapETHTest is Test {
             address(0),
             minFulfillETH,
             block.timestamp + 1 hours,
-            FULFILLMENT_FEE,
             BOUNTY_AMOUNT,
+            GAS_COMPENSATION,
             _getOracleParams(),
-            _getSlippageParams()
+            _getSlippageParams(),
+            _getFulfillFeeParams()
         );
         vm.stopPrank();
 
@@ -522,8 +551,8 @@ contract OpenSwapETHTest is Test {
         vm.warp(block.timestamp + LATENCY_BAILOUT + 1);
         swapContract.bailOut(swapId);
 
-        // Verify refunds
+        // Verify refunds (matcher also received gasCompensation at match time)
         assertEq(token.balanceOf(swapper), swapperTokenBefore, "Swapper should have tokens back");
-        assertEq(matcher.balance, matcherEthBefore, "Matcher should have ETH back");
+        assertEq(matcher.balance, matcherEthBefore + GAS_COMPENSATION, "Matcher should have ETH back + gasComp");
     }
 }

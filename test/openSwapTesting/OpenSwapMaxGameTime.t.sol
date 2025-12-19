@@ -46,7 +46,14 @@ contract OpenSwapMaxGameTimeTest is Test {
     uint256 constant SELL_AMT = 10e18;
     uint256 constant MIN_OUT = 1e18;
     uint256 constant MIN_FULFILL_LIQUIDITY = 25000e18;
-    uint256 constant FULFILLMENT_FEE = 10000;
+    uint256 constant GAS_COMPENSATION = 0.001 ether;
+
+    // FulfillFeeParams
+    uint24 constant MAX_FEE = 10000;
+    uint24 constant STARTING_FEE = 10000;
+    uint24 constant ROUND_LENGTH = 60;
+    uint16 constant GROWTH_RATE = 15000;
+    uint16 constant MAX_ROUNDS_FEE = 10;
 
     function setUp() public {
         oracle = new OpenOracle();
@@ -98,7 +105,16 @@ contract OpenSwapMaxGameTimeTest is Test {
             toleranceRange: 0
         });
 
-        uint256 ethToSend = BOUNTY_AMOUNT + SETTLER_REWARD + 1;
+        openSwap.FulfillFeeParams memory fulfillFeeParams = openSwap.FulfillFeeParams({
+            startFulfillFeeIncrease: 0,
+            maxFee: MAX_FEE,
+            startingFee: STARTING_FEE,
+            roundLength: ROUND_LENGTH,
+            growthRate: GROWTH_RATE,
+            maxRounds: MAX_ROUNDS_FEE
+        });
+
+        uint256 ethToSend = GAS_COMPENSATION + BOUNTY_AMOUNT + SETTLER_REWARD + 1;
 
         swapId = swapContract.swap{value: ethToSend}(
             SELL_AMT,
@@ -107,10 +123,11 @@ contract OpenSwapMaxGameTimeTest is Test {
             address(buyToken),
             MIN_FULFILL_LIQUIDITY,
             block.timestamp + 1 hours,
-            FULFILLMENT_FEE,
             BOUNTY_AMOUNT,
+            GAS_COMPENSATION,
             oracleParams,
-            slippageParams
+            slippageParams,
+            fulfillFeeParams
         );
 
         vm.stopPrank();
@@ -136,7 +153,16 @@ contract OpenSwapMaxGameTimeTest is Test {
             toleranceRange: 0
         });
 
-        uint256 ethToSend = BOUNTY_AMOUNT + SETTLER_REWARD + 1;
+        openSwap.FulfillFeeParams memory fulfillFeeParams = openSwap.FulfillFeeParams({
+            startFulfillFeeIncrease: 0,
+            maxFee: MAX_FEE,
+            startingFee: STARTING_FEE,
+            roundLength: ROUND_LENGTH,
+            growthRate: GROWTH_RATE,
+            maxRounds: MAX_ROUNDS_FEE
+        });
+
+        uint256 ethToSend = GAS_COMPENSATION + BOUNTY_AMOUNT + SETTLER_REWARD + 1;
 
         swapId = swapContract.swap{value: ethToSend}(
             SELL_AMT,
@@ -145,10 +171,11 @@ contract OpenSwapMaxGameTimeTest is Test {
             address(buyToken),
             MIN_FULFILL_LIQUIDITY,
             block.timestamp + 1 hours,
-            FULFILLMENT_FEE,
             BOUNTY_AMOUNT,
+            GAS_COMPENSATION,
             oracleParams,
-            slippageParams
+            slippageParams,
+            fulfillFeeParams
         );
 
         vm.stopPrank();
@@ -400,7 +427,16 @@ contract OpenSwapMaxGameTimeTest is Test {
             toleranceRange: 0
         });
 
-        uint256 ethToSend = BOUNTY_AMOUNT + SETTLER_REWARD + 1;
+        openSwap.FulfillFeeParams memory fulfillFeeParams = openSwap.FulfillFeeParams({
+            startFulfillFeeIncrease: 0,
+            maxFee: MAX_FEE,
+            startingFee: STARTING_FEE,
+            roundLength: ROUND_LENGTH,
+            growthRate: GROWTH_RATE,
+            maxRounds: MAX_ROUNDS_FEE
+        });
+
+        uint256 ethToSend = GAS_COMPENSATION + BOUNTY_AMOUNT + SETTLER_REWARD + 1;
 
         vm.expectRevert(abi.encodeWithSelector(openSwap.InvalidInput.selector, "oracleParams"));
         swapContract.swap{value: ethToSend}(
@@ -410,10 +446,11 @@ contract OpenSwapMaxGameTimeTest is Test {
             address(buyToken),
             MIN_FULFILL_LIQUIDITY,
             block.timestamp + 1 hours,
-            FULFILLMENT_FEE,
             BOUNTY_AMOUNT,
+            GAS_COMPENSATION,
             badParams,
-            slippageParams
+            slippageParams,
+            fulfillFeeParams
         );
 
         vm.stopPrank();

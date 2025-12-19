@@ -34,7 +34,14 @@ contract OpenSwapHappyPathTest is Test {
     uint256 constant SELL_AMT = 10e18;
     uint256 constant MIN_OUT = 19000e18;
     uint256 constant MIN_FULFILL_LIQUIDITY = 25000e18;
-    uint256 constant FULFILLMENT_FEE = 10000; // 0.1%
+    uint256 constant GAS_COMPENSATION = 0.001 ether;
+
+    // FulfillFeeParams
+    uint24 constant MAX_FEE = 10000; // 0.1%
+    uint24 constant STARTING_FEE = 10000;
+    uint24 constant ROUND_LENGTH = 60;
+    uint16 constant GROWTH_RATE = 15000; // 1.5x
+    uint16 constant MAX_ROUNDS = 10;
 
     function setUp() public {
         // Deploy contracts
@@ -109,7 +116,16 @@ contract OpenSwapHappyPathTest is Test {
             toleranceRange: 0
         });
 
-        uint256 ethToSend = BOUNTY_AMOUNT + SETTLER_REWARD + 1;
+        openSwap.FulfillFeeParams memory fulfillFeeParams = openSwap.FulfillFeeParams({
+            startFulfillFeeIncrease: 0, // set by contract
+            maxFee: MAX_FEE,
+            startingFee: STARTING_FEE,
+            roundLength: ROUND_LENGTH,
+            growthRate: GROWTH_RATE,
+            maxRounds: MAX_ROUNDS
+        });
+
+        uint256 ethToSend = GAS_COMPENSATION + BOUNTY_AMOUNT + SETTLER_REWARD + 1;
 
         uint256 swapId = swapContract.swap{value: ethToSend}(
             SELL_AMT,
@@ -118,10 +134,11 @@ contract OpenSwapHappyPathTest is Test {
             address(buyToken),
             MIN_FULFILL_LIQUIDITY,
             block.timestamp + 1 hours,
-            FULFILLMENT_FEE,
             BOUNTY_AMOUNT,
+            GAS_COMPENSATION,
             oracleParams,
-            slippageParams
+            slippageParams,
+            fulfillFeeParams
         );
 
         vm.stopPrank();
@@ -215,7 +232,7 @@ contract OpenSwapHappyPathTest is Test {
         // fulfillAmt -= fulfillAmt * fulfillmentFee / 1e7
         (uint256 currentAmount1, uint256 currentAmount2,,,,,,,,) = oracle.reportStatus(reportId);
         uint256 fulfillAmt = (SELL_AMT * currentAmount2) / currentAmount1;
-        fulfillAmt -= fulfillAmt * FULFILLMENT_FEE / 1e7;
+        fulfillAmt -= fulfillAmt * MAX_FEE / 1e7;
 
         // Swapper should have received buyToken
         assertEq(buyToken.balanceOf(swapper), swapperBuyBefore + fulfillAmt, "Swapper should receive buyToken");

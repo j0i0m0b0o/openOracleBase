@@ -36,7 +36,14 @@ contract OpenSwapInputValidationTest is Test {
     uint256 constant SELL_AMT = 10e18;
     uint256 constant MIN_OUT = 19000e18;
     uint256 constant MIN_FULFILL_LIQUIDITY = 25000e18;
-    uint256 constant FULFILLMENT_FEE = 10000;
+    uint256 constant GAS_COMPENSATION = 0.001 ether;
+
+    // FulfillFeeParams
+    uint24 constant MAX_FEE = 10000;
+    uint24 constant STARTING_FEE = 10000;
+    uint24 constant ROUND_LENGTH = 60;
+    uint16 constant GROWTH_RATE = 15000;
+    uint16 constant MAX_ROUNDS = 10;
 
     function setUp() public {
         // Mock WETH
@@ -80,22 +87,34 @@ contract OpenSwapInputValidationTest is Test {
         return openSwap.SlippageParams({priceTolerated: 0, toleranceRange: 0});
     }
 
+    function _validFulfillFeeParams() internal pure returns (openSwap.FulfillFeeParams memory) {
+        return openSwap.FulfillFeeParams({
+            startFulfillFeeIncrease: 0,
+            maxFee: MAX_FEE,
+            startingFee: STARTING_FEE,
+            roundLength: ROUND_LENGTH,
+            growthRate: GROWTH_RATE,
+            maxRounds: MAX_ROUNDS
+        });
+    }
+
     // ============ swap() Token Validation Tests ============
 
     function testSwap_SellTokenEqualsBuyToken_Reverts() public {
         vm.startPrank(swapper);
         vm.expectRevert(abi.encodeWithSelector(openSwap.InvalidInput.selector, "sellToken = buyToken"));
-        swapContract.swap{value: BOUNTY_AMOUNT + SETTLER_REWARD + 1}(
+        swapContract.swap{value: GAS_COMPENSATION + BOUNTY_AMOUNT + SETTLER_REWARD + 1}(
             SELL_AMT,
             address(sellToken),
             MIN_OUT,
             address(sellToken), // same as sellToken
             MIN_FULFILL_LIQUIDITY,
             block.timestamp + 1 hours,
-            FULFILLMENT_FEE,
             BOUNTY_AMOUNT,
+            GAS_COMPENSATION,
             _validOracleParams(),
-            _validSlippageParams()
+            _validSlippageParams(),
+            _validFulfillFeeParams()
         );
         vm.stopPrank();
     }
@@ -108,17 +127,18 @@ contract OpenSwapInputValidationTest is Test {
 
         vm.startPrank(swapper);
         vm.expectRevert(abi.encodeWithSelector(openSwap.InvalidInput.selector, "sellToken = buyToken"));
-        swapContract.swap{value: BOUNTY_AMOUNT + SETTLER_REWARD + 1}(
+        swapContract.swap{value: GAS_COMPENSATION + BOUNTY_AMOUNT + SETTLER_REWARD + 1}(
             SELL_AMT,
             WETH,
             MIN_OUT,
             address(0), // ETH
             MIN_FULFILL_LIQUIDITY,
             block.timestamp + 1 hours,
-            FULFILLMENT_FEE,
             BOUNTY_AMOUNT,
+            GAS_COMPENSATION,
             _validOracleParams(),
-            _validSlippageParams()
+            _validSlippageParams(),
+            _validFulfillFeeParams()
         );
         vm.stopPrank();
     }
@@ -126,17 +146,18 @@ contract OpenSwapInputValidationTest is Test {
     function testSwap_ETHSellWETHBuy_Reverts() public {
         vm.startPrank(swapper);
         vm.expectRevert(abi.encodeWithSelector(openSwap.InvalidInput.selector, "sellToken = buyToken"));
-        swapContract.swap{value: SELL_AMT + BOUNTY_AMOUNT + SETTLER_REWARD + 1}(
+        swapContract.swap{value: SELL_AMT + GAS_COMPENSATION + BOUNTY_AMOUNT + SETTLER_REWARD + 1}(
             SELL_AMT,
             address(0), // ETH
             MIN_OUT,
             WETH,
             MIN_FULFILL_LIQUIDITY,
             block.timestamp + 1 hours,
-            FULFILLMENT_FEE,
             BOUNTY_AMOUNT,
+            GAS_COMPENSATION,
             _validOracleParams(),
-            _validSlippageParams()
+            _validSlippageParams(),
+            _validFulfillFeeParams()
         );
         vm.stopPrank();
     }
@@ -146,17 +167,18 @@ contract OpenSwapInputValidationTest is Test {
     function testSwap_ZeroSellAmt_Reverts() public {
         vm.startPrank(swapper);
         vm.expectRevert(abi.encodeWithSelector(openSwap.InvalidInput.selector, "zero amounts"));
-        swapContract.swap{value: BOUNTY_AMOUNT + SETTLER_REWARD + 1}(
+        swapContract.swap{value: GAS_COMPENSATION + BOUNTY_AMOUNT + SETTLER_REWARD + 1}(
             0, // zero sellAmt
             address(sellToken),
             MIN_OUT,
             address(buyToken),
             MIN_FULFILL_LIQUIDITY,
             block.timestamp + 1 hours,
-            FULFILLMENT_FEE,
             BOUNTY_AMOUNT,
+            GAS_COMPENSATION,
             _validOracleParams(),
-            _validSlippageParams()
+            _validSlippageParams(),
+            _validFulfillFeeParams()
         );
         vm.stopPrank();
     }
@@ -164,17 +186,18 @@ contract OpenSwapInputValidationTest is Test {
     function testSwap_ZeroMinOut_Reverts() public {
         vm.startPrank(swapper);
         vm.expectRevert(abi.encodeWithSelector(openSwap.InvalidInput.selector, "zero amounts"));
-        swapContract.swap{value: BOUNTY_AMOUNT + SETTLER_REWARD + 1}(
+        swapContract.swap{value: GAS_COMPENSATION + BOUNTY_AMOUNT + SETTLER_REWARD + 1}(
             SELL_AMT,
             address(sellToken),
             0, // zero minOut
             address(buyToken),
             MIN_FULFILL_LIQUIDITY,
             block.timestamp + 1 hours,
-            FULFILLMENT_FEE,
             BOUNTY_AMOUNT,
+            GAS_COMPENSATION,
             _validOracleParams(),
-            _validSlippageParams()
+            _validSlippageParams(),
+            _validFulfillFeeParams()
         );
         vm.stopPrank();
     }
@@ -182,74 +205,103 @@ contract OpenSwapInputValidationTest is Test {
     function testSwap_ZeroMinFulfillLiquidity_Reverts() public {
         vm.startPrank(swapper);
         vm.expectRevert(abi.encodeWithSelector(openSwap.InvalidInput.selector, "zero amounts"));
-        swapContract.swap{value: BOUNTY_AMOUNT + SETTLER_REWARD + 1}(
+        swapContract.swap{value: GAS_COMPENSATION + BOUNTY_AMOUNT + SETTLER_REWARD + 1}(
             SELL_AMT,
             address(sellToken),
             MIN_OUT,
             address(buyToken),
             0, // zero minFulfillLiquidity
             block.timestamp + 1 hours,
-            FULFILLMENT_FEE,
             BOUNTY_AMOUNT,
+            GAS_COMPENSATION,
             _validOracleParams(),
-            _validSlippageParams()
+            _validSlippageParams(),
+            _validFulfillFeeParams()
         );
         vm.stopPrank();
     }
 
-    // ============ swap() FulfillmentFee Tests ============
+    // ============ swap() FulfillFeeParams Tests ============
 
-    function testSwap_FulfillmentFeeTooHigh_Reverts() public {
+    function testSwap_MaxFeeTooHigh_Reverts() public {
+        openSwap.FulfillFeeParams memory badFeeParams = openSwap.FulfillFeeParams({
+            startFulfillFeeIncrease: 0,
+            maxFee: uint24(1e7), // maxFee >= 1e7
+            startingFee: STARTING_FEE,
+            roundLength: ROUND_LENGTH,
+            growthRate: GROWTH_RATE,
+            maxRounds: MAX_ROUNDS
+        });
+
         vm.startPrank(swapper);
         vm.expectRevert(abi.encodeWithSelector(openSwap.InvalidInput.selector, "fulfillmentFee"));
-        swapContract.swap{value: BOUNTY_AMOUNT + SETTLER_REWARD + 1}(
+        swapContract.swap{value: GAS_COMPENSATION + BOUNTY_AMOUNT + SETTLER_REWARD + 1}(
             SELL_AMT,
             address(sellToken),
             MIN_OUT,
             address(buyToken),
             MIN_FULFILL_LIQUIDITY,
             block.timestamp + 1 hours,
-            1e7, // fulfillmentFee >= 1e7
             BOUNTY_AMOUNT,
+            GAS_COMPENSATION,
             _validOracleParams(),
-            _validSlippageParams()
+            _validSlippageParams(),
+            badFeeParams
         );
         vm.stopPrank();
     }
 
-    function testSwap_FulfillmentFeeAtBoundary_Reverts() public {
+    function testSwap_MaxFeeAtBoundary_Reverts() public {
+        openSwap.FulfillFeeParams memory badFeeParams = openSwap.FulfillFeeParams({
+            startFulfillFeeIncrease: 0,
+            maxFee: uint24(1e7), // Exactly 1e7 should revert
+            startingFee: STARTING_FEE,
+            roundLength: ROUND_LENGTH,
+            growthRate: GROWTH_RATE,
+            maxRounds: MAX_ROUNDS
+        });
+
         vm.startPrank(swapper);
-        // Exactly 1e7 should revert
         vm.expectRevert(abi.encodeWithSelector(openSwap.InvalidInput.selector, "fulfillmentFee"));
-        swapContract.swap{value: BOUNTY_AMOUNT + SETTLER_REWARD + 1}(
+        swapContract.swap{value: GAS_COMPENSATION + BOUNTY_AMOUNT + SETTLER_REWARD + 1}(
             SELL_AMT,
             address(sellToken),
             MIN_OUT,
             address(buyToken),
             MIN_FULFILL_LIQUIDITY,
             block.timestamp + 1 hours,
-            1e7,
             BOUNTY_AMOUNT,
+            GAS_COMPENSATION,
             _validOracleParams(),
-            _validSlippageParams()
+            _validSlippageParams(),
+            badFeeParams
         );
         vm.stopPrank();
     }
 
-    function testSwap_FulfillmentFeeBelowBoundary_Succeeds() public {
+    function testSwap_MaxFeeBelowBoundary_Succeeds() public {
+        openSwap.FulfillFeeParams memory goodFeeParams = openSwap.FulfillFeeParams({
+            startFulfillFeeIncrease: 0,
+            maxFee: uint24(1e7 - 1), // 1e7 - 1 should work
+            startingFee: STARTING_FEE,
+            roundLength: ROUND_LENGTH,
+            growthRate: GROWTH_RATE,
+            maxRounds: MAX_ROUNDS
+        });
+
         vm.startPrank(swapper);
-        // 1e7 - 1 should work
-        uint256 swapId = swapContract.swap{value: BOUNTY_AMOUNT + SETTLER_REWARD + 1}(
+        uint256 swapId = swapContract.swap{value: GAS_COMPENSATION + BOUNTY_AMOUNT + SETTLER_REWARD + 1}(
             SELL_AMT,
             address(sellToken),
             MIN_OUT,
             address(buyToken),
             MIN_FULFILL_LIQUIDITY,
             block.timestamp + 1 hours,
-            1e7 - 1,
             BOUNTY_AMOUNT,
+            GAS_COMPENSATION,
             _validOracleParams(),
-            _validSlippageParams()
+            _validSlippageParams(),
+            goodFeeParams
         );
         assertGt(swapId, 0, "Swap should be created");
         vm.stopPrank();
@@ -263,10 +315,10 @@ contract OpenSwapInputValidationTest is Test {
 
         vm.startPrank(swapper);
         vm.expectRevert(abi.encodeWithSelector(openSwap.InvalidInput.selector, "oracleParams"));
-        swapContract.swap{value: BOUNTY_AMOUNT + 99 + 1}(
+        swapContract.swap{value: GAS_COMPENSATION + BOUNTY_AMOUNT + 99 + 1}(
             SELL_AMT, address(sellToken), MIN_OUT, address(buyToken),
-            MIN_FULFILL_LIQUIDITY, block.timestamp + 1 hours, FULFILLMENT_FEE, BOUNTY_AMOUNT,
-            params, _validSlippageParams()
+            MIN_FULFILL_LIQUIDITY, block.timestamp + 1 hours, BOUNTY_AMOUNT, GAS_COMPENSATION,
+            params, _validSlippageParams(), _validFulfillFeeParams()
         );
         vm.stopPrank();
     }
@@ -277,10 +329,10 @@ contract OpenSwapInputValidationTest is Test {
 
         vm.startPrank(swapper);
         vm.expectRevert(abi.encodeWithSelector(openSwap.InvalidInput.selector, "oracleParams"));
-        swapContract.swap{value: BOUNTY_AMOUNT + SETTLER_REWARD + 1}(
+        swapContract.swap{value: GAS_COMPENSATION + BOUNTY_AMOUNT + SETTLER_REWARD + 1}(
             SELL_AMT, address(sellToken), MIN_OUT, address(buyToken),
-            MIN_FULFILL_LIQUIDITY, block.timestamp + 1 hours, FULFILLMENT_FEE, BOUNTY_AMOUNT,
-            params, _validSlippageParams()
+            MIN_FULFILL_LIQUIDITY, block.timestamp + 1 hours, BOUNTY_AMOUNT, GAS_COMPENSATION,
+            params, _validSlippageParams(), _validFulfillFeeParams()
         );
         vm.stopPrank();
     }
@@ -291,10 +343,10 @@ contract OpenSwapInputValidationTest is Test {
 
         vm.startPrank(swapper);
         vm.expectRevert(abi.encodeWithSelector(openSwap.InvalidInput.selector, "oracleParams"));
-        swapContract.swap{value: BOUNTY_AMOUNT + SETTLER_REWARD + 1}(
+        swapContract.swap{value: GAS_COMPENSATION + BOUNTY_AMOUNT + SETTLER_REWARD + 1}(
             SELL_AMT, address(sellToken), MIN_OUT, address(buyToken),
-            MIN_FULFILL_LIQUIDITY, block.timestamp + 1 hours, FULFILLMENT_FEE, BOUNTY_AMOUNT,
-            params, _validSlippageParams()
+            MIN_FULFILL_LIQUIDITY, block.timestamp + 1 hours, BOUNTY_AMOUNT, GAS_COMPENSATION,
+            params, _validSlippageParams(), _validFulfillFeeParams()
         );
         vm.stopPrank();
     }
@@ -305,10 +357,10 @@ contract OpenSwapInputValidationTest is Test {
 
         vm.startPrank(swapper);
         vm.expectRevert(abi.encodeWithSelector(openSwap.InvalidInput.selector, "oracleParams"));
-        swapContract.swap{value: BOUNTY_AMOUNT + SETTLER_REWARD + 1}(
+        swapContract.swap{value: GAS_COMPENSATION + BOUNTY_AMOUNT + SETTLER_REWARD + 1}(
             SELL_AMT, address(sellToken), MIN_OUT, address(buyToken),
-            MIN_FULFILL_LIQUIDITY, block.timestamp + 1 hours, FULFILLMENT_FEE, BOUNTY_AMOUNT,
-            params, _validSlippageParams()
+            MIN_FULFILL_LIQUIDITY, block.timestamp + 1 hours, BOUNTY_AMOUNT, GAS_COMPENSATION,
+            params, _validSlippageParams(), _validFulfillFeeParams()
         );
         vm.stopPrank();
     }
@@ -319,10 +371,10 @@ contract OpenSwapInputValidationTest is Test {
 
         vm.startPrank(swapper);
         vm.expectRevert(abi.encodeWithSelector(openSwap.InvalidInput.selector, "oracleParams"));
-        swapContract.swap{value: BOUNTY_AMOUNT + SETTLER_REWARD + 1}(
+        swapContract.swap{value: GAS_COMPENSATION + BOUNTY_AMOUNT + SETTLER_REWARD + 1}(
             SELL_AMT, address(sellToken), MIN_OUT, address(buyToken),
-            MIN_FULFILL_LIQUIDITY, block.timestamp + 1 hours, FULFILLMENT_FEE, BOUNTY_AMOUNT,
-            params, _validSlippageParams()
+            MIN_FULFILL_LIQUIDITY, block.timestamp + 1 hours, BOUNTY_AMOUNT, GAS_COMPENSATION,
+            params, _validSlippageParams(), _validFulfillFeeParams()
         );
         vm.stopPrank();
     }
@@ -333,10 +385,10 @@ contract OpenSwapInputValidationTest is Test {
 
         vm.startPrank(swapper);
         vm.expectRevert(abi.encodeWithSelector(openSwap.InvalidInput.selector, "oracleParams"));
-        swapContract.swap{value: BOUNTY_AMOUNT + SETTLER_REWARD + 1}(
+        swapContract.swap{value: GAS_COMPENSATION + BOUNTY_AMOUNT + SETTLER_REWARD + 1}(
             SELL_AMT, address(sellToken), MIN_OUT, address(buyToken),
-            MIN_FULFILL_LIQUIDITY, block.timestamp + 1 hours, FULFILLMENT_FEE, BOUNTY_AMOUNT,
-            params, _validSlippageParams()
+            MIN_FULFILL_LIQUIDITY, block.timestamp + 1 hours, BOUNTY_AMOUNT, GAS_COMPENSATION,
+            params, _validSlippageParams(), _validFulfillFeeParams()
         );
         vm.stopPrank();
     }
@@ -347,10 +399,10 @@ contract OpenSwapInputValidationTest is Test {
 
         vm.startPrank(swapper);
         vm.expectRevert(abi.encodeWithSelector(openSwap.InvalidInput.selector, "oracleParams"));
-        swapContract.swap{value: BOUNTY_AMOUNT + SETTLER_REWARD + 1}(
+        swapContract.swap{value: GAS_COMPENSATION + BOUNTY_AMOUNT + SETTLER_REWARD + 1}(
             SELL_AMT, address(sellToken), MIN_OUT, address(buyToken),
-            MIN_FULFILL_LIQUIDITY, block.timestamp + 1 hours, FULFILLMENT_FEE, BOUNTY_AMOUNT,
-            params, _validSlippageParams()
+            MIN_FULFILL_LIQUIDITY, block.timestamp + 1 hours, BOUNTY_AMOUNT, GAS_COMPENSATION,
+            params, _validSlippageParams(), _validFulfillFeeParams()
         );
         vm.stopPrank();
     }
@@ -362,10 +414,10 @@ contract OpenSwapInputValidationTest is Test {
 
         vm.startPrank(swapper);
         vm.expectRevert(abi.encodeWithSelector(openSwap.InvalidInput.selector, "oracleParams"));
-        swapContract.swap{value: BOUNTY_AMOUNT + SETTLER_REWARD + 1}(
+        swapContract.swap{value: GAS_COMPENSATION + BOUNTY_AMOUNT + SETTLER_REWARD + 1}(
             SELL_AMT, address(sellToken), MIN_OUT, address(buyToken),
-            MIN_FULFILL_LIQUIDITY, block.timestamp + 1 hours, FULFILLMENT_FEE, BOUNTY_AMOUNT,
-            params, _validSlippageParams()
+            MIN_FULFILL_LIQUIDITY, block.timestamp + 1 hours, BOUNTY_AMOUNT, GAS_COMPENSATION,
+            params, _validSlippageParams(), _validFulfillFeeParams()
         );
         vm.stopPrank();
     }
@@ -374,10 +426,10 @@ contract OpenSwapInputValidationTest is Test {
 
     function testMatchSwap_ParamHashMismatch_Reverts() public {
         vm.startPrank(swapper);
-        uint256 swapId = swapContract.swap{value: BOUNTY_AMOUNT + SETTLER_REWARD + 1}(
+        uint256 swapId = swapContract.swap{value: GAS_COMPENSATION + BOUNTY_AMOUNT + SETTLER_REWARD + 1}(
             SELL_AMT, address(sellToken), MIN_OUT, address(buyToken),
-            MIN_FULFILL_LIQUIDITY, block.timestamp + 1 hours, FULFILLMENT_FEE, BOUNTY_AMOUNT,
-            _validOracleParams(), _validSlippageParams()
+            MIN_FULFILL_LIQUIDITY, block.timestamp + 1 hours, BOUNTY_AMOUNT, GAS_COMPENSATION,
+            _validOracleParams(), _validSlippageParams(), _validFulfillFeeParams()
         );
         vm.stopPrank();
 
@@ -390,10 +442,10 @@ contract OpenSwapInputValidationTest is Test {
 
     function testMatchSwap_Expired_Reverts() public {
         vm.startPrank(swapper);
-        uint256 swapId = swapContract.swap{value: BOUNTY_AMOUNT + SETTLER_REWARD + 1}(
+        uint256 swapId = swapContract.swap{value: GAS_COMPENSATION + BOUNTY_AMOUNT + SETTLER_REWARD + 1}(
             SELL_AMT, address(sellToken), MIN_OUT, address(buyToken),
-            MIN_FULFILL_LIQUIDITY, block.timestamp + 1 hours, FULFILLMENT_FEE, BOUNTY_AMOUNT,
-            _validOracleParams(), _validSlippageParams()
+            MIN_FULFILL_LIQUIDITY, block.timestamp + 1 hours, BOUNTY_AMOUNT, GAS_COMPENSATION,
+            _validOracleParams(), _validSlippageParams(), _validFulfillFeeParams()
         );
         vm.stopPrank();
 
@@ -409,10 +461,10 @@ contract OpenSwapInputValidationTest is Test {
 
     function testMatchSwap_AlreadyMatched_Reverts() public {
         vm.startPrank(swapper);
-        uint256 swapId = swapContract.swap{value: BOUNTY_AMOUNT + SETTLER_REWARD + 1}(
+        uint256 swapId = swapContract.swap{value: GAS_COMPENSATION + BOUNTY_AMOUNT + SETTLER_REWARD + 1}(
             SELL_AMT, address(sellToken), MIN_OUT, address(buyToken),
-            MIN_FULFILL_LIQUIDITY, block.timestamp + 1 hours, FULFILLMENT_FEE, BOUNTY_AMOUNT,
-            _validOracleParams(), _validSlippageParams()
+            MIN_FULFILL_LIQUIDITY, block.timestamp + 1 hours, BOUNTY_AMOUNT, GAS_COMPENSATION,
+            _validOracleParams(), _validSlippageParams(), _validFulfillFeeParams()
         );
         vm.stopPrank();
 
@@ -430,10 +482,10 @@ contract OpenSwapInputValidationTest is Test {
 
     function testMatchSwap_Cancelled_Reverts() public {
         vm.startPrank(swapper);
-        uint256 swapId = swapContract.swap{value: BOUNTY_AMOUNT + SETTLER_REWARD + 1}(
+        uint256 swapId = swapContract.swap{value: GAS_COMPENSATION + BOUNTY_AMOUNT + SETTLER_REWARD + 1}(
             SELL_AMT, address(sellToken), MIN_OUT, address(buyToken),
-            MIN_FULFILL_LIQUIDITY, block.timestamp + 1 hours, FULFILLMENT_FEE, BOUNTY_AMOUNT,
-            _validOracleParams(), _validSlippageParams()
+            MIN_FULFILL_LIQUIDITY, block.timestamp + 1 hours, BOUNTY_AMOUNT, GAS_COMPENSATION,
+            _validOracleParams(), _validSlippageParams(), _validFulfillFeeParams()
         );
         swapContract.cancelSwap(swapId);
         vm.stopPrank();
