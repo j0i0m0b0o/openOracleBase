@@ -45,7 +45,7 @@ contract openSwap is ReentrancyGuard {
         bounty = IBounty(bounty_);
     }
 
-    mapping (uint256 => Swap) swaps;
+    mapping (uint256 => Swap) public swaps;
     uint256 public nextSwapId = 1;
 
     mapping (uint256 => uint256) reportIdToSwapId;
@@ -417,12 +417,47 @@ contract openSwap is ReentrancyGuard {
     {
         if (priceTolerated == 0 || toleranceRange == 0) return true;
         uint256 maxDiff = (priceTolerated * toleranceRange) / 1e7;
-        
+
         if (priceTolerated > price) {
             return (priceTolerated - price) <= maxDiff;
         } else {
             return (price - priceTolerated) <= maxDiff;
         }
+    }
+
+    /* -------- VIEW FUNCTIONS -------- */
+
+    /**
+     * @notice Returns the full Swap struct for a given swapId
+     * @param swapId Unique identifier of swapping instance
+     */
+    function getSwap(uint256 swapId) external view returns (Swap memory) {
+        return swaps[swapId];
+    }
+
+    /**
+     * @notice Returns oracle parameters for a given swapId
+     * @param swapId Unique identifier of swapping instance
+     */
+    function getOracleParams(uint256 swapId) external view returns (OracleParams memory) {
+        return swaps[swapId].oracleParams;
+    }
+
+    /**
+     * @notice Returns slippage parameters for a given swapId
+     * @param swapId Unique identifier of swapping instance
+     */
+    function getSlippageParams(uint256 swapId) external view returns (SlippageParams memory) {
+        return swaps[swapId].slippageParams;
+    }
+
+    /**
+     * @notice Returns the keccak256 hash of a Swap struct for optional matcher verification
+     * @dev Risky if trusting an RPC - a malicious RPC can return false data. Use your own node or construct yourself with expected parameters for protection.
+     * @param swapId Unique identifier of swapping instance
+     */
+    function getSwapHash(uint256 swapId) external view returns (bytes32) {
+        return keccak256(abi.encode(swaps[swapId]));
     }
 
 }
