@@ -366,9 +366,10 @@ contract openSwap is ReentrancyGuard {
     /**
      * @notice Lets users bail out of a swapId and both swapper and matcher receive tokens back.
                Anyone-can-call.
-               Two bailout conditions:
+               Three bail out conditions:
                     1. reportId distributed but swapId not finished
-                    2. latencyBailout time in seconds has passed without an oracle initial report
+                    2. latencyBailout time in seconds has passed without an oracle initial report since oracle game started
+                    3. maxGameTime has passed since oracle game started 
      * @param swapId Unique identifier of swapping instance
     */
     function bailOut(uint256 swapId) external nonReentrant {
