@@ -281,22 +281,6 @@ contract OpenSwapProtocolFeesTest is Test {
 
     // ============ grabOracleGameFeesAny Tests ============
 
-    function testProtocolFees_GrabOracleGameFeesAny_ValidatesGameId() public {
-        uint256 swapId1 = _createSwap();
-        _matchSwap(swapId1);
-
-        uint256 swapId2 = _createSwap();
-        _matchSwap(swapId2);
-
-        openSwap.Swap memory s1 = swapContract.getSwap(swapId1);
-        openSwap.Swap memory s2 = swapContract.getSwap(swapId2);
-
-        // Try to use swap1's feeRecipient for swap2
-        vm.prank(randomUser);
-        vm.expectRevert(abi.encodeWithSelector(openSwap.InvalidInput.selector, "feeRecipient not for swapId"));
-        swapContract.grabOracleGameFeesAny(swapId2, s1.feeRecipient);
-    }
-
     function testProtocolFees_GrabOracleGameFeesAny_RevertsIfZeroProtocolFee() public {
         uint256 swapId = _createSwapWithProtocolFee(0);
         _matchSwap(swapId);
@@ -305,7 +289,7 @@ contract OpenSwapProtocolFeesTest is Test {
         // Calling gameId() on address(0) will revert
         vm.prank(randomUser);
         vm.expectRevert();
-        swapContract.grabOracleGameFeesAny(swapId, address(0));
+        swapContract.grabOracleGameFeesAny(swapId);
     }
 
     function testProtocolFees_GrabOracleGameFeesAny_RevertsIfNotMatched() public {
@@ -315,7 +299,7 @@ contract OpenSwapProtocolFeesTest is Test {
         // Calling gameId() on random address will revert
         vm.prank(randomUser);
         vm.expectRevert();
-        swapContract.grabOracleGameFeesAny(swapId, address(0x1234));
+        swapContract.grabOracleGameFeesAny(swapId);
     }
 
     function testProtocolFees_GrabOracleGameFeesAny_AnyoneCanCall() public {
@@ -327,7 +311,7 @@ contract OpenSwapProtocolFeesTest is Test {
 
         // Random user can call
         vm.prank(randomUser);
-        swapContract.grabOracleGameFeesAny(swapId, s.feeRecipient);
+        swapContract.grabOracleGameFeesAny(swapId);
     }
 
     // ============ Fee Distribution Tests ============
@@ -373,7 +357,7 @@ contract OpenSwapProtocolFeesTest is Test {
 
         // Trigger fee distribution
         vm.prank(randomUser);
-        swapContract.grabOracleGameFeesAny(swapId, s.feeRecipient);
+        swapContract.grabOracleGameFeesAny(swapId);
 
         uint256 swapperAfter = sellToken.balanceOf(swapper);
         uint256 matcherAfter = sellToken.balanceOf(matcher);
@@ -407,7 +391,7 @@ contract OpenSwapProtocolFeesTest is Test {
 
         // Trigger fee distribution
         vm.prank(randomUser);
-        swapContract.grabOracleGameFeesAny(swapId, s.feeRecipient);
+        swapContract.grabOracleGameFeesAny(swapId);
 
         // Check sellToken distribution
         assertEq(sellToken.balanceOf(swapper) - swapperSellBefore, sellFee / 2, "Swapper gets 50% of sellToken fees");
@@ -434,7 +418,7 @@ contract OpenSwapProtocolFeesTest is Test {
         uint256 matcherBefore = sellToken.balanceOf(matcher);
 
         vm.prank(randomUser);
-        swapContract.grabOracleGameFeesAny(swapId, s.feeRecipient);
+        swapContract.grabOracleGameFeesAny(swapId);
 
         // swapperPiece = 101 / 2 = 50
         // matcherPiece = 101 - 50 = 51 (matcher gets the extra wei)
@@ -454,7 +438,7 @@ contract OpenSwapProtocolFeesTest is Test {
 
         // No tokens sent to feeReceiver - should be no-op
         vm.prank(randomUser);
-        swapContract.grabOracleGameFeesAny(swapId, s.feeRecipient);
+        swapContract.grabOracleGameFeesAny(swapId);
 
         assertEq(sellToken.balanceOf(swapper), swapperSellBefore, "Swapper balance unchanged");
         assertEq(sellToken.balanceOf(matcher), matcherSellBefore, "Matcher balance unchanged");
@@ -472,7 +456,7 @@ contract OpenSwapProtocolFeesTest is Test {
         sellToken.transfer(address(feeReceiver), 100e18);
 
         vm.prank(randomUser);
-        swapContract.grabOracleGameFeesAny(swapId, s.feeRecipient);
+        swapContract.grabOracleGameFeesAny(swapId);
 
         uint256 swapperAfterFirst = sellToken.balanceOf(swapper);
 
@@ -480,7 +464,7 @@ contract OpenSwapProtocolFeesTest is Test {
         sellToken.transfer(address(feeReceiver), 50e18);
 
         vm.prank(randomUser);
-        swapContract.grabOracleGameFeesAny(swapId, s.feeRecipient);
+        swapContract.grabOracleGameFeesAny(swapId);
 
         uint256 swapperAfterSecond = sellToken.balanceOf(swapper);
 
