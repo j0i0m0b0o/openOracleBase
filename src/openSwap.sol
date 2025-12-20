@@ -108,6 +108,10 @@ contract openSwap is ReentrancyGuard {
     event SwapCreated(uint256 indexed swapId, uint256 sellAmt, address sellToken, uint256 minOut, address buyToken, uint256 minFulfillLiquidity, uint256 expiration, uint256 priceTolerated, uint256 toleranceRange, FulfillFeeParams fulfillFeeParams, uint256 blockTimestamp);
     event SwapCancelled(uint256 swapId);
     event SingleFee(uint256 swapId, uint256 fulfillmentFee);
+    event SwapRefunded(uint256 swapId, address swapper, address matcher);
+    event SwapExecuted(address indexed swapper, address indexed matcher, uint256 swapId, uint256 sellTokenAmt, uint256 buyTokenAmt);
+    event SwapMatched(uint256 swapId, uint256 fulfillmentFee, address matcher);
+    event FeesTransferred(address buyToken, address sellToken, address feeRecipientContract);
 
     /**
      * @notice Creates a swap, sending sellAmt of sellToken into the contract.
@@ -240,6 +244,8 @@ contract openSwap is ReentrancyGuard {
         s.reportId = reportId;
         reportIdToSwapId[reportId] = swapId;
 
+        emit SwapMatched(swapId, s.fulfillmentFee, s.matcher);
+
     }
 
     /**
@@ -334,6 +340,7 @@ contract openSwap is ReentrancyGuard {
         // maybe we dont need minOut anymore?
         if (fulfillAmt > s.minFulfillLiquidity || fulfillAmt < s.minOut || !slippageOk) {
             refund(s.sellToken, s.sellAmt, s.swapper, s.buyToken, s.minFulfillLiquidity, s.matcher);
+            emit SwapRefunded(swapId, s.swapper, s.matcher);
         } else {
             //complete swap
             if (s.buyToken != address(0)){
@@ -349,6 +356,9 @@ contract openSwap is ReentrancyGuard {
                 payEth(s.matcher, s.minFulfillLiquidity - fulfillAmt);
                 _transferTokens(s.sellToken, address(this), s.matcher, s.sellAmt);
             }
+
+            emit SwapExecuted(s.swapper, s.matcher, swapId, s.sellAmt, fulfillAmt);
+
         }
 
         if (s.oracleParams.protocolFee > 0) {
@@ -399,6 +409,7 @@ contract openSwap is ReentrancyGuard {
             }
 
             refund(s.sellToken, s.sellAmt, s.swapper, s.buyToken, s.minFulfillLiquidity, s.matcher);
+            emit SwapRefunded(swapId, s.swapper, s.matcher);
         }
     }
 
@@ -474,6 +485,7 @@ contract openSwap is ReentrancyGuard {
             payEth(swapper, sellAmt);
             _transferTokens(buyToken, address(this), matcher, buyAmt);
         }
+
     }
 
     function calcFee(uint256 maxFee, uint256 startingFee, uint256 growthRate, uint256 maxRounds, uint256 startFulfillFeeIncrease, uint256 roundLength) internal view returns (uint256) {
@@ -545,6 +557,9 @@ contract openSwap is ReentrancyGuard {
 
         _transferTokens(buyToken, address(this), s.swapper, swapperBuyFeePiece);
         _transferTokens(buyToken, address(this), s.matcher, matcherBuyFeePiece);
+
+        emit FeesTransferred(buyToken, sellToken, s.feeRecipient);
+
     }
 
     /* -------- VIEW FUNCTIONS -------- */
