@@ -48,6 +48,7 @@ contract openOracleDataProviderV3 {
         bytes4 callbackSelector;
         bool trackDisputes;
         bool keepFee;
+        address protocolFeeRecipient;
     }
 
     function getData(uint256 reportId) external view returns (botStruct[] memory) {
@@ -87,7 +88,8 @@ contract openOracleDataProviderV3 {
                 _reportExtra.callbackGasLimit,
                 _reportExtra.callbackSelector,
                 _reportExtra.trackDisputes,
-                _reportExtra.keepFee
+                _reportExtra.keepFee,
+                _reportExtra.protocolFeeRecipient
             );
         }
         return data;
@@ -130,7 +132,53 @@ contract openOracleDataProviderV3 {
                 _reportExtra.callbackGasLimit,
                 _reportExtra.callbackSelector,
                 _reportExtra.trackDisputes,
-                _reportExtra.keepFee
+                _reportExtra.keepFee,
+                _reportExtra.protocolFeeRecipient
+            );
+        }
+        return data;
+    }
+
+    function getData(uint256[] calldata reportIds) external view returns (botStruct[] memory) {
+        botStruct[] memory data = new botStruct[](reportIds.length);
+        for (uint256 i = 0; i < reportIds.length; i++) {
+            uint256 reportId = reportIds[i];
+            IOpenOracle.ReportMeta memory _reportMeta = oracle.reportMeta(reportId);
+            IOpenOracle.ReportStatus memory _reportStatus = oracle.reportStatus(reportId);
+            IOpenOracle.extraReportData memory _reportExtra = oracle.extraData(reportId);
+
+            data[i] = botStruct(
+                reportId,
+                _reportMeta.exactToken1Report,
+                _reportMeta.escalationHalt,
+                _reportMeta.fee,
+                _reportMeta.settlerReward,
+                _reportMeta.token1,
+                _reportMeta.settlementTime,
+                _reportMeta.token2,
+                _reportMeta.timeType,
+                _reportMeta.feePercentage,
+                _reportMeta.protocolFee,
+                _reportMeta.multiplier,
+                _reportMeta.disputeDelay,
+                _reportStatus.currentAmount1,
+                _reportStatus.currentAmount2,
+                _reportStatus.price,
+                _reportStatus.currentReporter,
+                _reportStatus.reportTimestamp,
+                _reportStatus.settlementTimestamp,
+                _reportStatus.initialReporter,
+                _reportStatus.lastReportOppoTime,
+                _reportStatus.disputeOccurred,
+                _reportStatus.isDistributed,
+                _reportExtra.stateHash,
+                _reportExtra.callbackContract,
+                _reportExtra.numReports,
+                _reportExtra.callbackGasLimit,
+                _reportExtra.callbackSelector,
+                _reportExtra.trackDisputes,
+                _reportExtra.keepFee,
+                _reportExtra.protocolFeeRecipient
             );
         }
         return data;
