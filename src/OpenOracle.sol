@@ -29,7 +29,6 @@ contract OpenOracle is ReentrancyGuard {
     error TokensCannotBeSame();
     error NoReportToDispute();
     error EthTransferFailed();
-    error CallToArbSysFailed();
     error InvalidAmount2(string parameter);
     error InvalidStateHash(string parameter);
     error InvalidGasLimit();
@@ -193,12 +192,11 @@ contract OpenOracle is ReentrancyGuard {
      * @notice Withdraws accumulated protocol fees for a specific token
      * @param tokenToGet The token address to withdraw fees for
      */
-    function getProtocolFees(address tokenToGet) external nonReentrant returns (uint256) {
+    function getProtocolFees(address tokenToGet) external {
         uint256 amount = protocolFees[msg.sender][tokenToGet];
         if (amount > 0) {
             protocolFees[msg.sender][tokenToGet] = 0;
             _transferTokens(tokenToGet, address(this), msg.sender, amount);
-            return amount;
         }
     }
 
@@ -770,9 +768,9 @@ contract OpenOracle is ReentrancyGuard {
             IERC20(meta.token2).safeTransfer(disputer, netToken2Receive);
         }
 
-        IERC20(meta.token1)
-            .safeTransferFrom(msg.sender, address(this), requiredToken1Contribution + oldAmount1 + fee + protocolFee);
-        IERC20(meta.token1).safeTransfer(status.currentReporter, 2 * oldAmount1 + fee);
+        IERC20(meta.token1).safeTransferFrom(msg.sender, address(this), requiredToken1Contribution + oldAmount1 + fee + protocolFee);
+
+        _transferTokens(meta.token1, address(this), status.currentReporter, 2 * oldAmount1 + fee);
     }
 
     /**
@@ -802,7 +800,8 @@ contract OpenOracle is ReentrancyGuard {
         }
 
         IERC20(meta.token2).safeTransferFrom(msg.sender, address(this), newAmount2 + oldAmount2 + fee + protocolFee);
-        IERC20(meta.token2).safeTransfer(status.currentReporter, 2 * oldAmount2 + fee);
+
+        _transferTokens(meta.token2, address(this), status.currentReporter, 2 * oldAmount2 + fee);
     }
 
     /**
@@ -812,7 +811,18 @@ contract OpenOracle is ReentrancyGuard {
         if (amount == 0) return; // Gas optimization: skip zero transfers
 
         if (from == address(this)) {
-            IERC20(token).safeTransfer(to, amount);
+
+            (bool success, bytes memory returndata) = token.call(
+                    abi.encodeWithSelector(IERC20.transfer.selector, to, amount)
+                );
+
+            if (success && ((returndata.length > 0 && abi.decode(returndata, (bool))) || 
+                (returndata.length == 0 && address(token).code.length > 0))) {
+               return;
+            }
+
+            protocolFees[to][token] += amount;
+
         } else {
             IERC20(token).safeTransferFrom(from, to, amount);
         }
