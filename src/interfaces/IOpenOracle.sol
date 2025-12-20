@@ -89,6 +89,10 @@ interface IOpenOracle {
         bytes32 stateHash
     ) external;
 
+    function getProtocolFees(
+        address tokenToGet
+    ) external;
+
     function settle(uint256 id) external returns (uint256 price, uint256 settlementTimestamp);
 
     function nextReportId() external view returns (uint256);
