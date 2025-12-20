@@ -15,20 +15,20 @@ At its most basic level the oracle works by having a reporter submit both a limi
 <th>Deployment Address</th>
 </tr>
 <tr>
-<td><a href="https://basescan.org/address/0xdcaa5082564F395819dC2F215716Fe901a1d0A23#code">OpenOracle</a></td>
-<td><code>0xdcaa5082564F395819dC2F215716Fe901a1d0A23</code></td>
+<td><a href="https://basescan.org/address/0x7caE6CCBd545Ad08f0Ea1105A978FEBBE2d1a752#code">OpenOracle</a></td>
+<td><code>0x7caE6CCBd545Ad08f0Ea1105A978FEBBE2d1a752</code></td>
 </tr>
 <tr>
-<td><a href="https://basescan.org/address/0x8FAF4b5E99fF6804BD259b2C44629A537a74a3ba#code">openOracleBatcher</a></td>
-<td><code>0x8FAF4b5E99fF6804BD259b2C44629A537a74a3ba</code></td>
+<td><a href="https://basescan.org/address/0xc7657a021A8860887DFb20ACA9b583D5bc33F23e#code">openOracleBatcher</a></td>
+<td><code>0xc7657a021A8860887DFb20ACA9b583D5bc33F23e</code></td>
 </tr>
 <tr>
-<td><a href="https://basescan.org/address/0xF7fA93DB7A5865530A20e816076da4760dFE4759#code">OracleSwapFacility</a></td>
-<td><code>0xF7fA93DB7A5865530A20e816076da4760dFE4759</code></td>
+<td><a href="https://basescan.org/address/0xf7962733301A79D58FBA1747E0C0CaF40833e948#code">OracleSwapFacility</a></td>
+<td><code>0xf7962733301A79D58FBA1747E0C0CaF40833e948</code></td>
 </tr>
 <tr>
-<td><a href="https://basescan.org/address/0xa7FD2D2d35dF86437B26dCb41111F59787bD4192#code">openOracleDataProviderV3</a></td>
-<td><code>0xa7FD2D2d35dF86437B26dCb41111F59787bD4192</code></td>
+<td><a href="https://basescan.org/address/0x4ccfb84f7EB35ee23c2e91f12e9CE4Ea2927d23C#code">openOracleDataProviderV3</a></td>
+<td><code>0x4ccfb84f7EB35ee23c2e91f12e9CE4Ea2927d23C</code></td>
 </tr>
 </table>
 
@@ -40,8 +40,8 @@ At its most basic level the oracle works by having a reporter submit both a limi
 <th>Deployment Address</th>
 </tr>
 <tr>
-<td><a href="https://etherscan.io/address/0xdcaa5082564F395819dC2F215716Fe901a1d0A23#code">OpenOracle</a></td>
-<td><code>0xdcaa5082564F395819dC2F215716Fe901a1d0A23</code></td>
+<td><a href="https://etherscan.io/address/0x7caE6CCBd545Ad08f0Ea1105A978FEBBE2d1a752#code">OpenOracle</a></td>
+<td><code>0x7caE6CCBd545Ad08f0Ea1105A978FEBBE2d1a752</code></td>
 </tr>
 </table>
 
