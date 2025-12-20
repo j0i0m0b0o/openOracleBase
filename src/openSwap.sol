@@ -352,7 +352,7 @@ contract openSwap is ReentrancyGuard {
         }
 
         if (s.oracleParams.protocolFee > 0) {
-            grabOracleGameFees(s, s.feeRecipient);
+            grabOracleGameFees(s);
         }
 
         // maxRounds > 0 checks if bounty exists for this reportId
@@ -405,15 +405,16 @@ contract openSwap is ReentrancyGuard {
      * @notice Anyone can distribute protocol fees from a given feeRecipient contract.
                Eventual oracle game callback should always clear these tokens out anyways.
      * @param swapId Unique identification number of swapping instance
-     * @param feeRecipient Oracle game protocolFeeRecipient
      */
-    function grabOracleGameFeesAny(uint256 swapId, address feeRecipient) external nonReentrant {
+    function grabOracleGameFeesAny(uint256 swapId) external nonReentrant {
         Swap storage s = swaps[swapId];
+        address feeRecipient = s.feeRecipient;
+        if (s.feeRecipient == address(0)) revert InvalidInput("no fee recipient");
         if (oracleFeeReceiver(feeRecipient).gameId() != swapId) revert InvalidInput("feeRecipient not for swapId");
         if (s.oracleParams.protocolFee == 0) revert InvalidInput("0 protocol fee");
         if (!s.matched) revert InvalidInput("not matched");
 
-        grabOracleGameFees(s, feeRecipient);
+        grabOracleGameFees(s);
     }
 
     /**
@@ -511,7 +512,8 @@ contract openSwap is ReentrancyGuard {
         }
     }
 
-    function grabOracleGameFees(Swap storage s, address feeRecipient) internal {
+    function grabOracleGameFees(Swap storage s) internal {
+        address feeRecipient = s.feeRecipient;
         oracleFeeReceiver feeReceiver = oracleFeeReceiver(feeRecipient);
         address sellToken;
         address buyToken;
