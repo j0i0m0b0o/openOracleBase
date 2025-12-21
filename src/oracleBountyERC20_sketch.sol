@@ -120,6 +120,7 @@ contract openOracleBounty is ReentrancyGuard {
     function _createOracleBounty(uint256 reportId, uint256 bountyStartAmt, address creator, address editor, uint16 bountyMultiplier, uint16 maxRounds, bool timeType, uint256 start, uint256 forwardStartTime, address bountyToken, uint256 maxAmount, uint256 roundLength) internal {
 
         if (maxRounds == 0 || bountyStartAmt == 0 || bountyMultiplier == 0 || maxAmount == 0 || roundLength == 0) revert InvalidInput("amounts cannot = 0");
+        if (maxRounds > 100) revert InvalidInput("too many rounds");
         if (Bounty[reportId].maxRounds > 0) revert InvalidInput("reportId has bounty");      
         if (bountyToken == address(0) && maxAmount != msg.value) revert InvalidInput("msg.value wrong");
         if (bountyStartAmt > maxAmount) revert InvalidInput("start > max");
@@ -191,6 +192,7 @@ contract openOracleBounty is ReentrancyGuard {
         if (msg.sender != bounty.editor) revert InvalidInput("wrong caller");
         if (newReportId != oracle.nextReportId()) revert InvalidInput("wrong reportId"); //call function right before creating the report instance so nobody can grief
         if (bounty.recalled) revert InvalidInput("bounty recalled");
+        if (bounty.maxRounds == 0) revert InvalidInput("bounty doesnt exist");
 
         uint256 amount;
         Bounty[newReportId] = Bounty[reportId];
@@ -243,9 +245,14 @@ contract openOracleBounty is ReentrancyGuard {
 
         if (bounty.recalled) revert InvalidInput("bounty recalled");
         if (bounty.claimed) revert InvalidInput("bounty claimed");
+        if (bounty.maxRounds == 0) revert InvalidInput("bounty doesnt exist");
 
         address token1 = oracle.reportMeta(reportId).token1;
         address token2 = oracle.reportMeta(reportId).token2;
+
+        uint256 bountyAmt = calcBounty(bounty.start, bounty.bountyStartAmt, bounty.maxRounds, bounty.bountyMultiplier, bounty.totalAmtDeposited, bounty.timeType, bounty.roundLength);
+        bounty.bountyClaimed = bountyAmt;
+        bounty.claimed = true;
 
         IERC20(token1).safeTransferFrom(msg.sender, address(this), amount1);
         IERC20(token2).safeTransferFrom(msg.sender, address(this), amount2);
@@ -257,11 +264,6 @@ contract openOracleBounty is ReentrancyGuard {
 
         IERC20(token1).forceApprove(address(oracle), 0);
         IERC20(token2).forceApprove(address(oracle), 0);
-
-        uint256 bountyAmt = calcBounty(bounty.start, bounty.bountyStartAmt, bounty.maxRounds, bounty.bountyMultiplier, bounty.totalAmtDeposited, bounty.timeType, bounty.roundLength);
-
-        bounty.claimed = true;
-        bounty.bountyClaimed = bountyAmt;
 
         if (bounty.bountyToken == address(0)){
             _sendEth(payable(reporter), bountyAmt);
