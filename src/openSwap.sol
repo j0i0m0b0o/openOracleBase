@@ -6,7 +6,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IOpenOracle} from "./interfaces/IOpenOracle.sol";
 import {IWETH} from "./interfaces/IWETH.sol";
-import {IBounty} from "./interfaces/IBounty.sol";
+import {IBountyERC20} from "./interfaces/IBountyERC20.sol";
 import {oracleFeeReceiver} from "./oracleFeeReceiver.sol";
 
 /**
@@ -36,7 +36,7 @@ import {oracleFeeReceiver} from "./oracleFeeReceiver.sol";
 contract openSwap is ReentrancyGuard {
     using SafeERC20 for IERC20;
 
-    IBounty public immutable bounty;
+    IBountyERC20 public immutable bounty;
     IOpenOracle public immutable oracle;
     address public immutable WETH = 0x4200000000000000000000000000000000000006;
 
@@ -45,7 +45,7 @@ contract openSwap is ReentrancyGuard {
 
     constructor(address oracle_, address bounty_) {
         oracle = IOpenOracle(oracle_);
-        bounty = IBounty(bounty_);
+        bounty = IBountyERC20(bounty_);
     }
 
     mapping (uint256 => Swap) public swaps;
@@ -237,7 +237,10 @@ contract openSwap is ReentrancyGuard {
             12247,
             20,
             true,
-            0
+            0,
+            address(0),
+            s.requiredBounty,
+            1
         );
 
         uint256 reportId = oracleGame(s);
@@ -366,7 +369,7 @@ contract openSwap is ReentrancyGuard {
         }
 
         // maxRounds > 0 checks if bounty exists for this reportId
-        IBounty.Bounties memory b = bounty.Bounty(id);
+        IBountyERC20.Bounties memory b = bounty.Bounty(id);
         if (b.maxRounds > 0 && !b.recalled) {
             try bounty.recallBounty(id) {} catch {}
         }
@@ -403,7 +406,7 @@ contract openSwap is ReentrancyGuard {
         if (rs.isDistributed && !s.finished || isLatent || isGameTooLong){
             s.finished = true;
 
-            IBounty.Bounties memory b = bounty.Bounty(s.reportId);
+            IBountyERC20.Bounties memory b = bounty.Bounty(s.reportId);
             if (b.maxRounds > 0 && !b.recalled) {
                 try bounty.recallBounty(s.reportId) {} catch {}
             }
