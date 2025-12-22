@@ -4,7 +4,7 @@ pragma solidity ^0.8.26;
 import "forge-std/Test.sol";
 import "../../src/OpenOracle.sol";
 import "../../src/openSwap.sol";
-import "../../src/oracleBounty.sol";
+import "../../src/oracleBountyERC20_sketch.sol";
 import "../utils/MockERC20.sol";
 
 /**
@@ -366,12 +366,12 @@ contract OpenSwapMaxGameTimeTest is Test {
         // Warp past maxGameTime
         vm.warp(block.timestamp + MAX_GAME_TIME + 1);
 
-        (, , , , , , , , , , bool recalledBefore,) = bountyContract.Bounty(reportId);
+        (,,,,,,,,,,,, bool recalledBefore,) = bountyContract.Bounty(reportId);
         assertFalse(recalledBefore, "Bounty should not be recalled before bailout");
 
         swapContract.bailOut(swapId);
 
-        (, , , , , , , , , , bool recalledAfter,) = bountyContract.Bounty(reportId);
+        (,,,,,,,,,,,, bool recalledAfter,) = bountyContract.Bounty(reportId);
         assertTrue(recalledAfter, "Bounty should be recalled after bailout");
     }
 

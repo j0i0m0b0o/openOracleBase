@@ -4,7 +4,7 @@ pragma solidity ^0.8.26;
 import "forge-std/Test.sol";
 import "../../src/OpenOracle.sol";
 import "../../src/openSwap.sol";
-import "../../src/oracleBounty.sol";
+import "../../src/oracleBountyERC20_sketch.sol";
 import "../utils/MockERC20.sol";
 
 contract OpenSwapHappyPathTest is Test {
@@ -187,8 +187,10 @@ contract OpenSwapHappyPathTest is Test {
             uint256 bountyClaimed,
             uint256 start,
             uint256 forwardStartTime,
+            uint256 roundLength,
             address payable creator,
             address editor,
+            address bountyToken,
             uint16 bountyMultiplier,
             uint16 maxRounds,
             bool claimed,

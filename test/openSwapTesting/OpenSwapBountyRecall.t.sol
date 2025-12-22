@@ -4,7 +4,7 @@ pragma solidity ^0.8.26;
 import "forge-std/Test.sol";
 import "../../src/OpenOracle.sol";
 import "../../src/openSwap.sol";
-import "../../src/oracleBounty.sol";
+import "../../src/oracleBountyERC20_sketch.sol";
 import "../utils/MockERC20.sol";
 
 /**
@@ -210,7 +210,7 @@ contract OpenSwapBountyRecallTest is Test {
         openSwap.Swap memory s = swapContract.getSwap(swapId);
         uint256 reportId = s.reportId;
 
-        (,,,,,,,,,, bool recalled,) = bountyContract.Bounty(reportId);
+        (,,,,,,,,,,,, bool recalled,) = bountyContract.Bounty(reportId);
         assertTrue(recalled, "Bounty should be recalled");
     }
 
@@ -228,7 +228,7 @@ contract OpenSwapBountyRecallTest is Test {
         uint256 reportId = s.reportId;
 
         // Check bounty state before settle
-        (uint256 totalDeposited,,,,,,,,,, bool recalledBefore,) = bountyContract.Bounty(reportId);
+        (uint256 totalDeposited,,,,,,,,,,,, bool recalledBefore,) = bountyContract.Bounty(reportId);
         assertEq(totalDeposited, BOUNTY_AMOUNT, "Total deposited should be BOUNTY_AMOUNT");
         assertFalse(recalledBefore, "Should not be recalled before settle");
 
@@ -281,7 +281,7 @@ contract OpenSwapBountyRecallTest is Test {
         );
 
         // Verify bounty is recalled
-        (,,,,,,,,,, bool recalled,) = bountyContract.Bounty(reportId);
+        (,,,,,,,,,,,, bool recalled,) = bountyContract.Bounty(reportId);
         assertTrue(recalled, "Bounty should be marked as recalled");
     }
 
@@ -301,7 +301,7 @@ contract OpenSwapBountyRecallTest is Test {
         bountyContract.submitInitialReport(reportId, INITIAL_LIQUIDITY, 2000e18, stateHash, initialReporter);
 
         // Check bounty was claimed
-        (,, uint256 bountyClaimed,,,,,,,bool claimed,,) = bountyContract.Bounty(reportId);
+        (,, uint256 bountyClaimed,,,,,,,,,bool claimed,,) = bountyContract.Bounty(reportId);
         assertTrue(claimed, "Bounty should be claimed after initial report");
         assertEq(bountyClaimed, BOUNTY_AMOUNT / 20, "BountyClaimed should be bountyStartAmt");
 
@@ -318,7 +318,7 @@ contract OpenSwapBountyRecallTest is Test {
         assertFalse(sAfter.finished, "Swap should NOT be finished - bailout conditions not met");
 
         // Bounty should NOT be recalled
-        (,,,,,,,,,, bool recalled,) = bountyContract.Bounty(reportId);
+        (,,,,,,,,,,,, bool recalled,) = bountyContract.Bounty(reportId);
         assertFalse(recalled, "Bounty should NOT be recalled");
     }
 
@@ -331,12 +331,12 @@ contract OpenSwapBountyRecallTest is Test {
         openSwap.Swap memory s = swapContract.getSwap(swapId);
         uint256 reportId = s.reportId;
 
-        (,,,,,,,,,, bool recalledBefore,) = bountyContract.Bounty(reportId);
+        (,,,,,,,,,,,, bool recalledBefore,) = bountyContract.Bounty(reportId);
         assertFalse(recalledBefore, "Should not be recalled initially");
 
         _submitReportAndSettle(swapId, INITIAL_LIQUIDITY, 2000e18);
 
-        (,,,,,,,,,, bool recalledAfter,) = bountyContract.Bounty(reportId);
+        (,,,,,,,,,,,, bool recalledAfter,) = bountyContract.Bounty(reportId);
         assertTrue(recalledAfter, "Should be recalled after settle");
     }
 
@@ -365,7 +365,7 @@ contract OpenSwapBountyRecallTest is Test {
         openSwap.Swap memory s = swapContract.getSwap(swapId);
         uint256 reportId = s.reportId;
 
-        (,,,,,,address editor,,,,,) = bountyContract.Bounty(reportId);
+        (,,,,,,,address editor,,,,,,) = bountyContract.Bounty(reportId);
         assertEq(editor, address(swapContract), "SwapContract should be bounty editor");
     }
 
@@ -376,7 +376,7 @@ contract OpenSwapBountyRecallTest is Test {
         openSwap.Swap memory s = swapContract.getSwap(swapId);
         uint256 reportId = s.reportId;
 
-        (,,,,,address creator,,,,,,) = bountyContract.Bounty(reportId);
+        (,,,,,,address creator,,,,,,,) = bountyContract.Bounty(reportId);
         assertEq(creator, swapper, "Swapper should be bounty creator");
     }
 
