@@ -15,13 +15,15 @@ import {oracleFeeReceiver} from "./oracleFeeReceiver.sol";
            Different from simpleSwapper since there's no choice about whether to fulfill
            simpleSwapper flow is deposit sellToken -> oracle game ends in price -> anyone has choice to swap against that price
            openSwap flow is deposit sellToken -> someone matches with enough buyToken -> oracle game ends in price -> swap executed against price
-           In general it is our belief that this swapping method may offer extremely cheap mean swap execution costs so it is worth pursuing.
-           The design is compatible with long round times (settlementTime) in the oracle game, since manipulating the oracle is the same game at any time scale:
-                      https://openprices.gitbook.io/openoracle-docs/contents/considerations#manipulation-without-a-swap-fee
-           The bias scales with something like the square root of the settlementTime.
-           It is hard to bias the mean finalized oracle price much off from true, even if the matcher in this contract is doing their best.
-           The geometry of the dispute barriers in the oracle game ensures very low survival probabilites for any prices reported off true.
-           The closer you get to true, the lower the extraction. Farther from true, the survival probabilities approach 0 much faster than extraction increases.
+           This swapping method may open up manipulation opportunities:
+                      https://openprices.gitbook.io/openoracle-docs/contents/considerations#a-stronger-form-of-manipulation
+           The bias scales with something like the square root of the settlementTime ish
+           For a 1.1x multiplier and zero swap or protocol fees, the effective fee paid from oracle manipulation is ~ 0.3 st dev of settlementTime returns
+           Effective fee (expected value transferred due to oracle manipulation, expressed as an equivalent spread/fee) assumes swapper is passive and lets the matcher manipulate
+           Matcher needs to be aware the swapper can manipulate, so if they want to be passive, they should ensure the fulfillmentFee is > ~0.3 st dev of settlement time returns
+           If both matcher and swapper commit to manipulation, they both lose uncapped money. So generally if we look at it from a 2x2 decision matrix, the equilibrium is to not manipulate
+           However, that 2x2 decision matrix is committing to manipulate, not testing the waters and giving up if the other party is manipulating.
+           In general, this is a very complex game and we probably need to play it in the real world to be sure about the economics.
  * @author OpenOracle Team
  * @custom:version 0.1.6
  * @custom:documentation https://openprices.gitbook.io/openoracle-docs
