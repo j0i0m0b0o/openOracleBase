@@ -15,14 +15,10 @@ import {oracleFeeReceiver} from "./oracleFeeReceiver.sol";
            Different from simpleSwapper since there's no choice about whether to fulfill
            simpleSwapper flow is deposit sellToken -> oracle game ends in price -> anyone has choice to swap against that price
            openSwap flow is deposit sellToken -> someone matches with enough buyToken -> oracle game ends in price -> swap executed against price
-           This swapping method may open up manipulation opportunities:
+           This swapping method may open up oracle price manipulation opportunities. We try to cover two manipulation strategies here:
                       https://openprices.gitbook.io/openoracle-docs/contents/considerations#a-stronger-form-of-manipulation
-           The bias scales with something like the square root of the settlementTime ish
-           For a 1.1x multiplier and zero swap or protocol fees, the effective fee paid from oracle manipulation is ~ 0.3 st dev of settlementTime returns
-           Effective fee (expected value transferred due to oracle manipulation, expressed as an equivalent spread/fee) assumes swapper is passive and lets the matcher manipulate
-           Matcher needs to be aware the swapper can manipulate, so if they want to be passive, they should ensure the fulfillmentFee is > ~0.3 st dev of settlement time returns
-           If both matcher and swapper commit to manipulation, they both lose uncapped money. So generally if we look at it from a 2x2 decision matrix, the equilibrium is to not manipulate
-           However, that 2x2 decision matrix is committing to manipulate, not testing the waters and giving up if the other party is manipulating.
+                      https://openprices.gitbook.io/openoracle-docs/contents/considerations#manipulation-without-a-swap-fee
+           Biasing the mean settled oracle price seems costly.
            In general, this is a very complex game and we probably need to play it in the real world to be sure about the economics.
  * @author OpenOracle Team
  * @custom:version 0.1.6
