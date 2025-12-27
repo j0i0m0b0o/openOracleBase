@@ -22,6 +22,72 @@ contract openOracleBatcher is ReentrancyGuard {
         oracle = IOpenOracle(oracleAddress);
     }
 
+    struct oracleParams {
+        uint256 exactToken1Report;
+        uint256 escalationHalt;
+        uint256 fee;
+        uint256 settlerReward;
+        address token1;
+        uint48 settlementTime;
+        address token2;
+        bool timeType;
+        uint24 feePercentage;
+        uint24 protocolFee;
+        uint16 multiplier;
+        uint24 disputeDelay;//reportMeta end
+        uint256 currentAmount1;
+        uint256 currentAmount2;//reportStatus end
+        uint32 callbackGasLimit;
+        address protocolFeeRecipient;
+        bool keepFee; //extraData end
+    }
+
+    // converts adversarial RPC into just a revert on-chain
+    function validate(uint256 reportId, oracleParams calldata p) internal view returns (bool) {
+        IOpenOracle.ReportMeta memory meta = oracle.reportMeta(reportId);
+        IOpenOracle.ReportStatus memory status = oracle.reportStatus(reportId);
+        IOpenOracle.extraReportData memory extra = oracle.extraData(reportId);
+
+        //basic callbackGasLimit and settlement time checks
+        if (meta.timeType && meta.settlementTime > 86400) return false;
+        if (!meta.timeType && meta.settlementTime > 43200) return false;
+        if (extra.callbackGasLimit > 1500000) return false;
+
+        //oracle instance sanity checks
+        if (p.exactToken1Report != meta.exactToken1Report) return false;
+        if (p.escalationHalt != meta.escalationHalt) return false;
+        if (p.fee != meta.fee) return false;
+        if (p.settlerReward != meta.settlerReward) return false;
+        if (p.token1 != meta.token1) return false;
+        if (p.settlementTime != meta.settlementTime) return false;
+        if (p.token2 != meta.token2) return false;
+        if (p.timeType != meta.timeType) return false;
+        if (p.feePercentage != meta.feePercentage) return false;
+        if (p.protocolFee != meta.protocolFee) return false;
+        if (p.multiplier != meta.multiplier) return false;
+        if (p.disputeDelay != meta.disputeDelay) return false;
+
+        if (p.currentAmount1 != status.currentAmount1) return false;
+        if (p.currentAmount2 != status.currentAmount2) return false;
+
+        if (p.callbackGasLimit != extra.callbackGasLimit) return false;
+        if (p.protocolFeeRecipient != extra.protocolFeeRecipient) return false;
+        if (p.keepFee != extra.keepFee) return false;
+
+        return true;
+
+    }
+
+    function keepFeeCheck(uint256 reportId, bool keepFee) internal view returns (bool) {
+        IOpenOracle.extraReportData memory extra = oracle.extraData(reportId);
+
+        if (!extra.keepFee) return false;
+        if (!keepFee) return false;
+
+        return true;
+
+    }
+
     struct InitialReportData {
         uint256 reportId;
         uint256 amount1;
@@ -29,7 +95,53 @@ contract openOracleBatcher is ReentrancyGuard {
         bytes32 stateHash;
     }
 
-    function submitInitialReportsSafe(
+    /**
+     * @notice Submits one initial report with reportId validation checks.
+     * @param reports Initial report data from struct InitialReportData
+     * @param p Oracle parameter data from struct oracleParams
+     * @param batchAmount1 Amount of oracle game token1 the batcher can draw from to attempt the initial report
+     * @param batchAmount2 Amount of oracle game token2 the batcher can draw from to attempt the initial report
+     * @param timestamp Current block.timestamp
+     * @param blockNumber Current block number
+     * @param timestampBound Transaction will revert if it lands +/- this number of seconds outside passed timestamp
+     * @param blockNumber Transaction will revert if it lands +/- this number of blocks outside passed blockNumber
+     */
+    function submitInitialReportSafe(
+        InitialReportData[] calldata reports,
+        oracleParams calldata p,
+        uint256 batchAmount1,
+        uint256 batchAmount2,
+        uint256 timestamp,
+        uint256 blockNumber,
+        uint256 timestampBound,
+        uint256 blockNumberBound
+    ) external nonReentrant {
+        if (block.timestamp > timestamp + timestampBound || block.timestamp < timestamp - timestampBound) revert ActionSafetyFailure("timestamp");
+        if (block.number > blockNumber + blockNumberBound || block.number < blockNumber - blockNumberBound) revert ActionSafetyFailure("block number");
+        if (reports.length != 1) revert ActionSafetyFailure("too many reports");
+        if (!keepFeeCheck(reports[0].reportId, p.keepFee)) revert ActionSafetyFailure("keepFee false");
+        if (!validate(reports[0].reportId, p)) revert ActionSafetyFailure("params dont match");
+
+        _submitInitialReports(reports, batchAmount1, batchAmount2);
+    }
+
+    /**
+     * @notice Submits multiple initial reports. Does not sanity check oracle parameters.
+               Note all initial reports must be of the same two tokens.
+               Different orders of oracle game tokens are permissible so long as they are the same:
+                   reportId 1: token1 WETH, token2 USDC 
+                   reportId 2: token1 USDC, token WETH
+                   reportId 3: token1 WETH, token2 USDC 
+               This would be a permissible batch
+     * @param reports Initial report data from struct InitialReportData
+     * @param batchAmount1 Amount of oracle game token1 the batcher can draw from to attempt the initial reports
+     * @param batchAmount2 Amount of oracle game token2 the batcher can draw from to attempt the initial reports
+     * @param timestamp Current block.timestamp
+     * @param blockNumber Current block number
+     * @param timestampBound Transaction will revert if it lands +/- this number of seconds outside passed timestamp
+     * @param blockNumber Transaction will revert if it lands +/- this number of blocks outside passed blockNumber
+     */
+    function submitInitialReportsNoValidation(
         InitialReportData[] calldata reports,
         uint256 batchAmount1,
         uint256 batchAmount2,
@@ -38,14 +150,24 @@ contract openOracleBatcher is ReentrancyGuard {
         uint256 timestampBound,
         uint256 blockNumberBound
     ) external nonReentrant {
-        if (block.timestamp > timestamp + timestampBound) {
-            revert ActionSafetyFailure("timestamp");
-        }
-        if (block.number > blockNumber + blockNumberBound) revert ActionSafetyFailure("block number");
+        if (block.timestamp > timestamp + timestampBound || block.timestamp < timestamp - timestampBound) revert ActionSafetyFailure("timestamp");
+        if (block.number > blockNumber + blockNumberBound || block.number < blockNumber - blockNumberBound) revert ActionSafetyFailure("block number");
 
         _submitInitialReports(reports, batchAmount1, batchAmount2);
     }
 
+    /**
+     * @notice Submits multiple initial reports without validation or timing / block number checks. Legacy function.
+               Note all initial reports must be of the same two tokens.
+               Different orders of oracle game tokens are permissible so long as they are the same:
+                   reportId 1: token1 WETH, token2 USDC 
+                   reportId 2: token1 USDC, token WETH
+                   reportId 3: token1 WETH, token2 USDC 
+               This would be a permissible batch
+     * @param reports Initial report data from struct InitialReportData
+     * @param batchAmount1 Amount of oracle game token1 the batcher can draw from to attempt the initial reports
+     * @param batchAmount2 Amount of oracle game token2 the batcher can draw from to attempt the initial reports
+     */
     function submitInitialReports(InitialReportData[] calldata reports, uint256 batchAmount1, uint256 batchAmount2)
         external
         nonReentrant
@@ -53,7 +175,6 @@ contract openOracleBatcher is ReentrancyGuard {
         _submitInitialReports(reports, batchAmount1, batchAmount2);
     }
 
-    //note: the first function input "reports" must ALL BE THE SAME TOKEN PAIR. technically, you can do both WETH/USDC and USDC/WETH reports for token1/token2 combinations in one call.
     function _submitInitialReports(InitialReportData[] calldata reports, uint256 batchAmount1, uint256 batchAmount2)
         internal
     {
@@ -79,9 +200,8 @@ contract openOracleBatcher is ReentrancyGuard {
         for (uint256 i = 0; i < reports.length; i++) {
             InitialReportData memory report = reports[i];
             try oracle.submitInitialReport(report.reportId, report.amount1, report.amount2, report.stateHash, sender) {
-            // Success - continue to next
-            }
-            catch {
+                // Success - continue to next
+            } catch {
                 // Failed - skip and continue
                 continue;
             }
@@ -119,8 +239,23 @@ contract openOracleBatcher is ReentrancyGuard {
         _disputeReports(disputes, batchAmount1, batchAmount2);
     }
 
-    //safe dispute functions are designed to mitigate replay attacks. pass in the block.timestamp and block.number you see at the time of dispute into timestamp and blockNumber respectively.
-    function disputeReportsSafe(
+    /**
+     * @notice Submits multiple disputes. Does not sanity check oracle parameters.
+               Note all disputes must be of the same two tokens.
+               Different orders of oracle game tokens are permissible so long as they are the same:
+                   reportId 1: token1 WETH, token2 USDC 
+                   reportId 2: token1 USDC, token WETH
+                   reportId 3: token1 WETH, token2 USDC 
+               This would be a permissible batch
+     * @param disputes Dispute data from struct DisputeData
+     * @param batchAmount1 Amount of oracle game token1 the batcher can draw from to attempt the disputes
+     * @param batchAmount2 Amount of oracle game token2 the batcher can draw from to attempt the disputes
+     * @param timestamp Current block.timestamp
+     * @param blockNumber Current block number
+     * @param timestampBound Transaction will revert if it lands +/- this number of seconds outside passed timestamp
+     * @param blockNumber Transaction will revert if it lands +/- this number of blocks outside passed blockNumber
+     */
+    function disputeReportsNoValidation(
         DisputeData[] calldata disputes,
         uint256 batchAmount1,
         uint256 batchAmount2,
@@ -129,14 +264,54 @@ contract openOracleBatcher is ReentrancyGuard {
         uint256 timestampBound,
         uint256 blockNumberBound
     ) external nonReentrant {
-        if (block.timestamp > timestamp + timestampBound) {
-            revert ActionSafetyFailure("timestamp");
-        }
-        if (block.number > blockNumber + blockNumberBound) revert ActionSafetyFailure("block number");
+        if (block.timestamp > timestamp + timestampBound || block.timestamp < timestamp - timestampBound)revert ActionSafetyFailure("timestamp");
+        if (block.number > blockNumber + blockNumberBound || block.number < blockNumber - blockNumberBound) revert ActionSafetyFailure("block number");
+        
         _disputeReports(disputes, batchAmount1, batchAmount2);
     }
 
-    //note: the first function input "disputes" must ALL BE THE SAME TOKEN PAIR. technically, you can do both WETH/USDC and USDC/WETH reports for token1/token2 combinations in one call.
+
+    /**
+     * @notice Submits one dispute with reportId validation checks.
+     * @param disputes Dispute data from struct DisputeData
+     * @param p Oracle parameter data from struct oracleParams
+     * @param batchAmount1 Amount of oracle game token1 the batcher can draw from to attempt the dispute
+     * @param batchAmount2 Amount of oracle game token2 the batcher can draw from to attempt the dispute
+     * @param timestamp Current block.timestamp
+     * @param blockNumber Current block number
+     * @param timestampBound Transaction will revert if it lands +/- this number of seconds outside passed timestamp
+     * @param blockNumber Transaction will revert if it lands +/- this number of blocks outside passed blockNumber
+     */
+    function disputeReportSafe(
+        DisputeData[] calldata disputes,
+        oracleParams calldata p,
+        uint256 batchAmount1,
+        uint256 batchAmount2,
+        uint256 timestamp,
+        uint256 blockNumber,
+        uint256 timestampBound,
+        uint256 blockNumberBound
+    ) external nonReentrant {
+        if (block.timestamp > timestamp + timestampBound || block.timestamp < timestamp - timestampBound) revert ActionSafetyFailure("timestamp");
+        if (block.number > blockNumber + blockNumberBound || block.number < blockNumber - blockNumberBound) revert ActionSafetyFailure("block number");
+        if (disputes.length != 1) revert ActionSafetyFailure("too many disputes");
+        if (!validate(disputes[0].reportId, p)) revert ActionSafetyFailure("params dont match");
+
+        _disputeReports(disputes, batchAmount1, batchAmount2);
+    }
+
+    /**
+     * @notice Submits multiple disputes without validation or timing / block number checks. Legacy function.
+               Note all disputes must be of the same two tokens.
+               Different orders of oracle game tokens are permissible so long as they are the same:
+                   reportId 1: token1 WETH, token2 USDC 
+                   reportId 2: token1 USDC, token WETH
+                   reportId 3: token1 WETH, token2 USDC 
+               This would be a permissible batch
+     * @param disputes Dispute data from struct DisputeData
+     * @param batchAmount1 Amount of oracle game token1 the batcher can draw from to attempt the disputes
+     * @param batchAmount2 Amount of oracle game token2 the batcher can draw from to attempt the disputes
+     */
     function _disputeReports(DisputeData[] calldata disputes, uint256 batchAmount1, uint256 batchAmount2) internal {
         address sender = msg.sender;
         uint256 startBal1;
@@ -168,9 +343,8 @@ contract openOracleBatcher is ReentrancyGuard {
                 dispute.amt2Expected,
                 dispute.stateHash
             ) {
-            // Success - continue to next
-            }
-            catch {
+                // Success - continue to next
+            } catch {
                 // Failed - skip and continue
                 continue;
             }
@@ -201,6 +375,10 @@ contract openOracleBatcher is ReentrancyGuard {
         bytes32 stateHash;
     }
 
+    /**
+     * @notice Settles multiple reports without stateHash validation.
+     * @param settles Settle data from struct SettleData
+     */
     function settleReports(SettleData[] calldata settles) external nonReentrant {
         uint256 balanceBefore = address(this).balance;
         for (uint256 i = 0; i < settles.length; i++) {
@@ -215,6 +393,14 @@ contract openOracleBatcher is ReentrancyGuard {
         if (!ok) revert EthTransferFailed();
     }
 
+    /**
+     * @notice Settles multiple reports with stateHash validation and timing checks.
+     * @param settles Settle data from struct SafeSettleData. Contains stateHash.
+     * @param timestamp Current block.timestamp
+     * @param blockNumber Current block number
+     * @param timestampBound Transaction will revert if it lands +/- this number of seconds outside passed timestamp
+     * @param blockNumber Transaction will revert if it lands +/- this number of blocks outside passed blockNumber
+     */
     function safeSettleReports(
         SafeSettleData[] calldata settles,
         uint256 timestamp,
@@ -222,8 +408,8 @@ contract openOracleBatcher is ReentrancyGuard {
         uint256 timestampBound,
         uint256 blockNumberBound
     ) external nonReentrant {
-        if (block.timestamp > timestamp + timestampBound) revert ActionSafetyFailure("timestamp");
-        if (block.number > blockNumber + blockNumberBound) revert ActionSafetyFailure("block number");
+        if (block.timestamp > timestamp + timestampBound || block.timestamp < timestamp - timestampBound) revert ActionSafetyFailure("timestamp");
+        if (block.number > blockNumber + blockNumberBound || block.number < blockNumber - blockNumberBound) revert ActionSafetyFailure("block number");
         uint256 balanceBefore = address(this).balance;
         for (uint256 i = 0; i < settles.length; i++) {
             SafeSettleData memory settle = settles[i];
