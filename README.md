@@ -19,8 +19,8 @@ At its most basic level the oracle works by having a reporter submit both a limi
 <td><code>0x7caE6CCBd545Ad08f0Ea1105A978FEBBE2d1a752</code></td>
 </tr>
 <tr>
-<td><a href="https://basescan.org/address/0xE23652de39374091B5495c737d414E76ba79bCb1#code">openOracleBatcher</a></td>
-<td><code>0xE23652de39374091B5495c737d414E76ba79bCb1</code></td>
+<td><a href="https://basescan.org/address/0x95420A44715AA90e4CAa76b8A04604B750Da67ed#code">openOracleBatcher</a></td>
+<td><code>0x95420A44715AA90e4CAa76b8A04604B750Da67ed</code></td>
 </tr>
 <tr>
 <td><a href="https://basescan.org/address/0xf7962733301A79D58FBA1747E0C0CaF40833e948#code">OracleSwapFacility</a></td>
