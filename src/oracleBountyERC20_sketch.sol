@@ -367,6 +367,19 @@ contract openOracleBounty is ReentrancyGuard {
         }
     }
 
+    /**
+     * @notice Returns bounty data for an array of reportIds
+     * @param reportIds Array of report IDs to query
+     * @return Array of Bounties structs corresponding to each reportId
+     */
+    function getBounties(uint256[] calldata reportIds) external view returns (Bounties[] memory) {
+        Bounties[] memory results = new Bounties[](reportIds.length);
+        for (uint256 i = 0; i < reportIds.length; i++) {
+            results[i] = Bounty[reportIds[i]];
+        }
+        return results;
+    }
+
     receive() external payable {
 
     }
