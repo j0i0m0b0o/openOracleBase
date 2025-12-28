@@ -60,6 +60,9 @@ contract openOracleBounty is ReentrancyGuard {
     //reportId to bounty
     mapping (uint256 => Bounties) public Bounty;
 
+    //temp holding
+    mapping (address => mapping(address => uint256)) public tempHolding;
+
     struct Bounties {
         uint256 totalAmtDeposited;
         uint256 bountyStartAmt;
@@ -281,12 +284,29 @@ contract openOracleBounty is ReentrancyGuard {
             if (bounty.bountyToken == address(0)){
                 _sendEth(bounty.creator, amount);
             } else {
-                IERC20(bounty.bountyToken).safeTransfer(bounty.creator, amount);
+                _transferTokens(bounty.bountyToken, address(this), bounty.creator, amount);
             }
             emit BountyRecalled(reportId, amount, bounty.bountyToken);
         }
 
         emit BountyInitialReportSubmitted(reportId, bountyAmt, bounty.bountyToken);
+    }
+
+    /**
+     * @notice Withdraws temp holdings for a specific token
+     * @param tokenToGet The token address to withdraw tokens for
+     */
+    function getTempHolding(address tokenToGet, address _to) external nonReentrant {
+        uint256 amount = tempHolding[_to][tokenToGet];
+        if (amount > 0) {
+            if (tokenToGet != address(0)){
+                tempHolding[_to][tokenToGet] = 0;
+                _transferTokens(tokenToGet, address(this), _to, amount);
+            } else {
+                tempHolding[_to][tokenToGet] = 0;
+                _sendEth(payable(_to), amount);
+            }
+        }
     }
 
     function calcBounty(uint256 start, uint256 bountyStartAmt, uint256 maxRounds, uint256 bountyMultiplier, uint256 totalAmtDeposited, bool timeType, uint256 roundLength) internal view returns (uint256){
@@ -317,8 +337,34 @@ contract openOracleBounty is ReentrancyGuard {
      */
     function _sendEth(address payable recipient, uint256 amount) internal {
         if (amount == 0) return;
-     (bool success,) =  recipient.call{value: amount, gas: 40000}("");
-     if (!success) revert InvalidInput("address cant receive eth");
+        (bool success,) =  recipient.call{value: amount, gas: 40000}("");
+        if (!success){
+            tempHolding[recipient][address(0)] += amount;
+        }
+    }
+
+    /**
+     * @dev Internal function to handle token transfers.                
+     */
+    function _transferTokens(address token, address from, address to, uint256 amount) internal {
+        if (amount == 0) return; // Gas optimization: skip zero transfers
+
+        if (from == address(this)) {
+
+            (bool success, bytes memory returndata) = token.call(
+                    abi.encodeWithSelector(IERC20.transfer.selector, to, amount)
+                );
+
+            if (success && ((returndata.length > 0 && abi.decode(returndata, (bool))) || 
+                (returndata.length == 0 && address(token).code.length > 0))) {
+               return;
+            }
+
+            tempHolding[to][token] += amount;
+
+        } else {
+            IERC20(token).safeTransferFrom(from, to, amount);
+        }
     }
 
     receive() external payable {
