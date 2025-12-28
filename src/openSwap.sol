@@ -238,7 +238,8 @@ contract openSwap is ReentrancyGuard {
             0,
             address(0),
             s.requiredBounty,
-            1
+            1,
+            false
         );
 
         uint256 reportId = oracleGame(s);
