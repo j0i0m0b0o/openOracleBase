@@ -43,7 +43,7 @@ contract openOracleBatcher is ReentrancyGuard {
     }
 
     // converts adversarial RPC into just a revert on-chain
-    function validate(uint256 reportId, oracleParams calldata p) internal view returns (bool) {
+    function validate(uint256 reportId, oracleParams calldata p, bool isInitialReport) internal view returns (bool) {
         IOpenOracle.ReportMeta memory meta = oracle.reportMeta(reportId);
         IOpenOracle.ReportStatus memory status = oracle.reportStatus(reportId);
         IOpenOracle.extraReportData memory extra = oracle.extraData(reportId);
@@ -54,7 +54,11 @@ contract openOracleBatcher is ReentrancyGuard {
         if (extra.callbackGasLimit > 1500000) return false;
 
         //oracle instance sanity checks
-        if (p.exactToken1Report != meta.exactToken1Report) return false;
+        if (isInitialReport) {
+            if (p.exactToken1Report != meta.exactToken1Report) return false;
+            if (p.keepFee != extra.keepFee) return false;
+        }
+
         if (p.escalationHalt != meta.escalationHalt) return false;
         if (p.fee != meta.fee) return false;
         if (p.settlerReward != meta.settlerReward) return false;
@@ -72,7 +76,6 @@ contract openOracleBatcher is ReentrancyGuard {
 
         if (p.callbackGasLimit != extra.callbackGasLimit) return false;
         if (p.protocolFeeRecipient != extra.protocolFeeRecipient) return false;
-        if (p.keepFee != extra.keepFee) return false;
 
         return true;
 
@@ -120,7 +123,7 @@ contract openOracleBatcher is ReentrancyGuard {
         if (block.number > blockNumber + blockNumberBound || block.number < blockNumber - blockNumberBound) revert ActionSafetyFailure("block number");
         if (reports.length != 1) revert ActionSafetyFailure("too many reports");
         if (!keepFeeCheck(reports[0].reportId, p.keepFee)) revert ActionSafetyFailure("keepFee false");
-        if (!validate(reports[0].reportId, p)) revert ActionSafetyFailure("params dont match");
+        if (!validate(reports[0].reportId, p, true)) revert ActionSafetyFailure("params dont match");
 
         _submitInitialReports(reports, batchAmount1, batchAmount2);
     }
@@ -270,7 +273,6 @@ contract openOracleBatcher is ReentrancyGuard {
         _disputeReports(disputes, batchAmount1, batchAmount2);
     }
 
-
     /**
      * @notice Submits one dispute with reportId validation checks.
      * @param disputes Dispute data from struct DisputeData
@@ -295,7 +297,7 @@ contract openOracleBatcher is ReentrancyGuard {
         if (block.timestamp > timestamp + timestampBound || block.timestamp < timestamp - timestampBound) revert ActionSafetyFailure("timestamp");
         if (block.number > blockNumber + blockNumberBound || block.number < blockNumber - blockNumberBound) revert ActionSafetyFailure("block number");
         if (disputes.length != 1) revert ActionSafetyFailure("too many disputes");
-        if (!validate(disputes[0].reportId, p)) revert ActionSafetyFailure("params dont match");
+        if (!validate(disputes[0].reportId, p, false)) revert ActionSafetyFailure("params dont match");
 
         _disputeReports(disputes, batchAmount1, batchAmount2);
     }
