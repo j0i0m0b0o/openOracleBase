@@ -366,12 +366,12 @@ contract OpenSwapMaxGameTimeTest is Test {
         // Warp past maxGameTime
         vm.warp(block.timestamp + MAX_GAME_TIME + 1);
 
-        (,,,,,,,,,,,, bool recalledBefore,) = bountyContract.Bounty(reportId);
+        (,,,,,,,,,,,, bool recalledBefore,,) = bountyContract.Bounty(reportId);
         assertFalse(recalledBefore, "Bounty should not be recalled before bailout");
 
         swapContract.bailOut(swapId);
 
-        (,,,,,,,,,,,, bool recalledAfter,) = bountyContract.Bounty(reportId);
+        (,,,,,,,,,,,, bool recalledAfter,,) = bountyContract.Bounty(reportId);
         assertTrue(recalledAfter, "Bounty should be recalled after bailout");
     }
 

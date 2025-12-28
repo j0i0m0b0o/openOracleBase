@@ -195,7 +195,7 @@ contract OpenSwapHappyPathTest is Test {
             uint16 maxRounds,
             bool claimed,
             bool recalled,
-            bool timeType
+            bool timeType,
         ) = bountyContract.Bounty(reportId);
 
         assertEq(totalAmtDeposited, BOUNTY_AMOUNT, "totalAmtDeposited should be BOUNTY_AMOUNT");

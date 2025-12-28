@@ -264,7 +264,7 @@ contract OpenSwapMatchSwapTest is Test {
         vm.stopPrank();
 
         // Check bounty was created via bountyContract
-        (,uint256 bountyStartAmt,,,,,,,,,,,,) = bountyContract.Bounty(expectedReportId);
+        (,uint256 bountyStartAmt,,,,,,,,,,,,,) = bountyContract.Bounty(expectedReportId);
         assertEq(bountyStartAmt, BOUNTY_AMOUNT / 20, "Bounty startAmt should be requiredBounty / 20");
     }
 
@@ -278,7 +278,7 @@ contract OpenSwapMatchSwapTest is Test {
         vm.stopPrank();
 
         // Check bounty creator (7th field in Bounties struct)
-        (,,,,,,address creator,,,,,,,) = bountyContract.Bounty(expectedReportId);
+        (,,,,,,address creator,,,,,,,,) = bountyContract.Bounty(expectedReportId);
         assertEq(creator, swapper, "Bounty creator should be swapper");
     }
 
@@ -292,7 +292,7 @@ contract OpenSwapMatchSwapTest is Test {
         vm.stopPrank();
 
         // Check bounty editor (8th field in Bounties struct)
-        (,,,,,,,address editor,,,,,,) = bountyContract.Bounty(expectedReportId);
+        (,,,,,,,address editor,,,,,,,) = bountyContract.Bounty(expectedReportId);
         assertEq(editor, address(swapContract), "Bounty editor should be swap contract");
     }
 
