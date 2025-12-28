@@ -17,6 +17,7 @@ interface IBountyERC20 {
         bool claimed;
         bool recalled;
         bool timeType;
+	    bool recallOnClaim;
     }
 
     event BountyInitialReportSubmitted(uint256 indexed reportId, uint256 bountyPaid, address bountyToken);
@@ -62,7 +63,8 @@ interface IBountyERC20 {
         uint256 start,
         address bountyToken,
         uint256 maxAmount,
-        uint256 roundLength
+        uint256 roundLength,
+	    bool recallOnClaim
     ) external payable;
 
     function createOracleBounty(
@@ -75,7 +77,8 @@ interface IBountyERC20 {
         bool timeType,
         address bountyToken,
         uint256 maxAmount,
-        uint256 roundLength
+        uint256 roundLength,
+	    bool recallOnClaim
     ) external payable;
 
     function createOracleBountyFwd(
@@ -89,7 +92,8 @@ interface IBountyERC20 {
         uint256 forwardStartTime,
         address bountyToken,
         uint256 maxAmount,
-        uint256 roundLength
+        uint256 roundLength,
+        bool recallOnClaim
     ) external payable;
 
     function recallBounty(uint256 reportId) external;
