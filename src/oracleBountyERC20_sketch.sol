@@ -81,6 +81,26 @@ contract openOracleBounty is ReentrancyGuard {
         bool recallOnClaim;
     }
 
+    struct oracleParams {
+        uint256 exactToken1Report;
+        uint256 escalationHalt;
+        uint256 fee;
+        uint256 settlerReward;
+        address token1;
+        uint48 settlementTime;
+        address token2;
+        bool timeType;
+        uint24 feePercentage;
+        uint24 protocolFee;
+        uint16 multiplier;
+        uint24 disputeDelay;//reportMeta end
+        uint256 currentAmount1;
+        uint256 currentAmount2;//reportStatus end
+        uint32 callbackGasLimit;
+        address protocolFeeRecipient;
+        bool keepFee; //extraData end
+    }
+
     constructor(address oracle_) {
         require(oracle_ != address(0), "oracle addr 0");
         oracle = IOpenOracle(oracle_);
@@ -120,7 +140,7 @@ contract openOracleBounty is ReentrancyGuard {
      * @param bountyToken Token address bounty is paid in. address(0) means bounty paid in ETH.
      * @param maxAmount Maximum bounty paid
      * @param roundLength Time length of per-round bounty escalation
-     * @param recallOnClaim If true, bounty is recalled to creator on claim
+     * @param recallOnClaim If true, bounty is recalled to creator on claim (successful initial report)
      */
     function _createOracleBounty(uint256 reportId, uint256 bountyStartAmt, address creator, address editor, uint16 bountyMultiplier, uint16 maxRounds, bool timeType, uint256 start, uint256 forwardStartTime, address bountyToken, uint256 maxAmount, uint256 roundLength, bool recallOnClaim) internal {
 
@@ -224,26 +244,70 @@ contract openOracleBounty is ReentrancyGuard {
     /**
      * @notice Submits the initial price report with a custom reporter address and claims the bounty to this address. Amounts use smallest unit for a given ERC-20.
      * @param reportId The unique identifier for the report
+     * @param p Oracle parameter data from struct oracleParams
      * @param amount1 Amount of token1 (must equal exactToken1Report)
      * @param amount2 Choose the amount of token2 that equals amount1 in value
-     * @param reporter The address that will receive tokens back when settled or disputed
+     * @param stateHash State hash for a given reportId in the oracle game
+     * @param reporter The address that will receive tokens back when this report is settled or disputed
+     * @param timestamp Current block.timestamp
+     * @param blockNumber Current block number
+     * @param timestampBound Transaction will revert if it lands +/- this number of seconds outside passed timestamp
+     * @param blockNumber Transaction will revert if it lands +/- this number of blocks outside passed blockNumber
      * @dev Tokens are pulled from msg.sender but will be returned to reporter address
      * @dev This overload enables contracts to submit reports on behalf of users
      */
-
-    function submitInitialReport(uint256 reportId, uint256 amount1, uint256 amount2, bytes32 stateHash, address reporter) external nonReentrant {
+    function submitInitialReport(uint256 reportId, oracleParams calldata p, uint256 amount1, uint256 amount2, bytes32 stateHash, address reporter, uint256 timestamp, uint256 blockNumber, uint256 timestampBound, uint256 blockNumberBound) external nonReentrant {
+        if (block.timestamp > timestamp + timestampBound || block.timestamp < timestamp - timestampBound) revert InvalidInput("timestamp");
+        if (block.number > blockNumber + blockNumberBound || block.number < blockNumber - blockNumberBound) revert InvalidInput("block number");
+        if (!validate(reportId, p)) revert InvalidInput("params dont match");
         _submitInitialReport(reportId, amount1, amount2, stateHash, reporter);
     }
 
     /**
+     * @notice Submits the initial price report and claims the bounty. Amounts use smallest unit for a given ERC-20.
+     * @param reportId The unique identifier for the report
+     * @param p Oracle parameter data from struct oracleParams which is checked against on-chain oracle state.
+     * @param amount1 Amount of token1 (must equal exactToken1Report)
+     * @param amount2 Choose the amount of token2 that equals amount1 in value
+     * @param stateHash State hash for a given reportId in the oracle game
+     * @param timestamp Current block.timestamp
+     * @param blockNumber Current block number
+     * @param timestampBound Transaction will revert if it lands +/- this number of seconds outside passed timestamp
+     * @param blockNumber Transaction will revert if it lands +/- this number of blocks outside passed blockNumber
+     * @dev Tokens are pulled from msg.sender and will be returned to msg.sender when settled or disputed
+     */
+    function submitInitialReport(uint256 reportId, oracleParams calldata p, uint256 amount1, uint256 amount2, bytes32 stateHash, uint256 timestamp, uint256 blockNumber, uint256 timestampBound, uint256 blockNumberBound) external nonReentrant {
+        if (block.timestamp > timestamp + timestampBound || block.timestamp < timestamp - timestampBound) revert InvalidInput("timestamp");
+        if (block.number > blockNumber + blockNumberBound || block.number < blockNumber - blockNumberBound) revert InvalidInput("block number");
+        if (!validate(reportId, p)) revert InvalidInput("params dont match");
+        _submitInitialReport(reportId, amount1, amount2, stateHash, msg.sender);
+    }
+
+    /**
      * @notice Submits the initial price report for a given report ID and claims the bounty. Amounts use smallest unit for a given ERC-20.
+               No validation other than stateHash is performed
      * @param reportId The unique identifier for the report
      * @param amount1 Amount of token1 (must equal exactToken1Report)
      * @param amount2 Choose the amount of token2 that equals amount1 in value
+     * @param stateHash State hash for a given reportId in the oracle game
      * @dev Tokens are pulled from msg.sender and will be returned to msg.sender when settled or disputed
      */
     function submitInitialReport(uint256 reportId, uint256 amount1, uint256 amount2, bytes32 stateHash) external nonReentrant {
         _submitInitialReport(reportId, amount1, amount2, stateHash, msg.sender);
+    }
+
+    /**
+     * @notice Submits the initial price report with a custom reporter address and claims the bounty to this address. Amounts use smallest unit for a given ERC-20.
+               No validation other than stateHash is performed
+     * @param reportId The unique identifier for the report
+     * @param amount1 Amount of token1 (must equal exactToken1Report)
+     * @param amount2 Choose the amount of token2 that equals amount1 in value
+     * @param stateHash State hash for a given reportId in the oracle game
+     * @param reporter The address that will receive tokens back when this report is settled or disputed
+     * @dev Tokens are pulled from msg.sender and will be returned to reporter when settled or disputed
+     */
+    function submitInitialReport(uint256 reportId, uint256 amount1, uint256 amount2, bytes32 stateHash, address reporter) external nonReentrant {
+        _submitInitialReport(reportId, amount1, amount2, stateHash, reporter);
     }
 
     function _submitInitialReport(uint256 reportId, uint256 amount1, uint256 amount2, bytes32 stateHash, address reporter) internal {
@@ -292,6 +356,7 @@ contract openOracleBounty is ReentrancyGuard {
         emit BountyInitialReportSubmitted(reportId, bountyAmt, bounty.bountyToken);
     }
 
+
     /**
      * @notice Withdraws temp holdings for a specific token
      * @param tokenToGet The token address to withdraw tokens for
@@ -331,6 +396,45 @@ contract openOracleBounty is ReentrancyGuard {
             return bounty;
 
     }
+
+    function validate(uint256 reportId, oracleParams calldata p) internal view returns (bool) {
+        IOpenOracle.ReportMeta memory meta = oracle.reportMeta(reportId);
+        IOpenOracle.ReportStatus memory status = oracle.reportStatus(reportId);
+        IOpenOracle.extraReportData memory extra = oracle.extraData(reportId);
+
+        //basic callbackGasLimit and settlement time checks
+        if (meta.timeType && meta.settlementTime > 86400) return false;
+        if (!meta.timeType && meta.settlementTime > 43200) return false;
+        if (extra.callbackGasLimit > 1500000) return false;
+
+        if (p.keepFee == false) return false;
+
+        //oracle instance sanity checks
+        if (p.exactToken1Report != meta.exactToken1Report) return false;
+        if (p.keepFee != extra.keepFee) return false;
+
+        if (p.escalationHalt != meta.escalationHalt) return false;
+        if (p.fee != meta.fee) return false;
+        if (p.settlerReward != meta.settlerReward) return false;
+        if (p.token1 != meta.token1) return false;
+        if (p.settlementTime != meta.settlementTime) return false;
+        if (p.token2 != meta.token2) return false;
+        if (p.timeType != meta.timeType) return false;
+        if (p.feePercentage != meta.feePercentage) return false;
+        if (p.protocolFee != meta.protocolFee) return false;
+        if (p.multiplier != meta.multiplier) return false;
+        if (p.disputeDelay != meta.disputeDelay) return false;
+
+        if (p.currentAmount1 != status.currentAmount1) return false;
+        if (p.currentAmount2 != status.currentAmount2) return false;
+
+        if (p.callbackGasLimit != extra.callbackGasLimit) return false;
+        if (p.protocolFeeRecipient != extra.protocolFeeRecipient) return false;
+
+        return true;
+
+    }
+
 
     /**
      * @dev Internal function to send ETH to a recipient
