@@ -20,6 +20,26 @@ interface IBountyERC20 {
 	    bool recallOnClaim;
     }
 
+    struct oracleParams {
+        uint256 exactToken1Report;
+        uint256 escalationHalt;
+        uint256 fee;
+        uint256 settlerReward;
+        address token1;
+        uint48 settlementTime;
+        address token2;
+        bool timeType;
+        uint24 feePercentage;
+        uint24 protocolFee;
+        uint16 multiplier;
+        uint24 disputeDelay;//reportMeta end
+        uint256 currentAmount1;
+        uint256 currentAmount2;//reportStatus end
+        uint32 callbackGasLimit;
+        address protocolFeeRecipient;
+        bool keepFee; //extraData end
+    }
+
     event BountyInitialReportSubmitted(uint256 indexed reportId, uint256 bountyPaid, address bountyToken);
     event BountyRecalled(uint256 indexed reportId, uint256 amt, address bountyToken);
     event BountyCreated(
@@ -103,4 +123,32 @@ interface IBountyERC20 {
     function submitInitialReport(uint256 reportId, uint256 amount1, uint256 amount2, bytes32 stateHash, address reporter) external;
 
     function submitInitialReport(uint256 reportId, uint256 amount1, uint256 amount2, bytes32 stateHash) external;
+
+	function submitInitialReport(
+	        uint256 reportId, 
+	        oracleParams calldata p, 
+	        uint256 amount1, 
+	        uint256 amount2, 
+	        bytes32 stateHash, 
+	        uint256 timestamp, 
+	        uint256 blockNumber, 
+	        uint256 timestampBound, 
+	        uint256 blockNumberBound
+	    ) external;
+
+	function submitInitialReport(
+	        uint256 reportId, 
+	        oracleParams calldata p, 
+	        uint256 amount1, 
+	        uint256 amount2, 
+	        bytes32 stateHash, 
+	        address reporter, 
+	        uint256 timestamp, 
+	        uint256 blockNumber, 
+	        uint256 timestampBound, 
+	        uint256 blockNumberBound
+	    ) external;
+
+	function getTempHolding(address tokenToGet, address _to) external;
+
 }
