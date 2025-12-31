@@ -140,12 +140,13 @@ contract OracleBountyERC20Test is Test {
     }
 
     function _createBountyAndOracleReport(bool recallOnClaim) internal returns (uint256 reportId, bytes32 stateHash) {
-        uint256 nextId = oracle.nextReportId();
+        // Create oracle report first
+        (reportId, stateHash) = _createOracleReport();
 
-        // Create bounty first (atomically before oracle report) - 11 param version (auto-start)
+        // Then create bounty (atomically after oracle report) - 11 param version (auto-start)
         vm.prank(creator);
         bountyContract.createOracleBounty{value: BOUNTY_MAX}(
-            nextId,
+            reportId,
             BOUNTY_START,
             creator,
             editor,
@@ -157,18 +158,15 @@ contract OracleBountyERC20Test is Test {
             ROUND_LENGTH,
             recallOnClaim
         );
-
-        // Now create oracle report
-        (reportId, stateHash) = _createOracleReport();
-        assertEq(reportId, nextId, "Report ID should match");
     }
 
     function _createBountyWithCreatorAndOracleReport(address _creator, bool recallOnClaim) internal returns (uint256 reportId, bytes32 stateHash) {
-        uint256 nextId = oracle.nextReportId();
+        // Create oracle report first
+        (reportId, stateHash) = _createOracleReport();
 
         vm.prank(creator);
         bountyContract.createOracleBounty{value: BOUNTY_MAX}(
-            nextId,
+            reportId,
             BOUNTY_START,
             _creator, // custom creator
             editor,
@@ -180,20 +178,19 @@ contract OracleBountyERC20Test is Test {
             ROUND_LENGTH,
             recallOnClaim
         );
-
-        (reportId, stateHash) = _createOracleReport();
-        assertEq(reportId, nextId, "Report ID should match");
     }
 
     function _createERC20BountyAndOracleReport(bool recallOnClaim) internal returns (uint256 reportId, bytes32 stateHash) {
-        uint256 nextId = oracle.nextReportId();
         uint256 bountyAmount = 10e18;
         uint256 bountyStart = 0.5e18;
 
-        // Create ERC20 bounty first (no msg.value for ERC20 bounties)
+        // Create oracle report first
+        (reportId, stateHash) = _createOracleReport();
+
+        // Then create ERC20 bounty (no msg.value for ERC20 bounties)
         vm.prank(creator);
         bountyContract.createOracleBounty(
-            nextId,
+            reportId,
             bountyStart,
             creator,
             editor,
@@ -205,20 +202,18 @@ contract OracleBountyERC20Test is Test {
             ROUND_LENGTH,
             recallOnClaim
         );
-
-        // Now create oracle report
-        (reportId, stateHash) = _createOracleReport();
-        assertEq(reportId, nextId, "Report ID should match");
     }
 
     function _createBlacklistBountyWithCreatorAndOracleReport(address _creator, bool recallOnClaim) internal returns (uint256 reportId, bytes32 stateHash) {
-        uint256 nextId = oracle.nextReportId();
         uint256 bountyAmount = 10e18;
         uint256 bountyStart = 0.5e18;
 
+        // Create oracle report first
+        (reportId, stateHash) = _createOracleReport();
+
         vm.prank(creator);
         bountyContract.createOracleBounty(
-            nextId,
+            reportId,
             bountyStart,
             _creator, // custom creator
             editor,
@@ -230,20 +225,18 @@ contract OracleBountyERC20Test is Test {
             ROUND_LENGTH,
             recallOnClaim
         );
-
-        (reportId, stateHash) = _createOracleReport();
-        assertEq(reportId, nextId, "Report ID should match");
     }
 
     // ============ Bounty Creation Tests ============
 
     function testCreateBounty_ETH() public {
-        uint256 nextId = oracle.nextReportId();
+        // Create oracle report first
+        (uint256 reportId,) = _createOracleReport();
         uint256 creatorBalBefore = creator.balance;
 
         vm.prank(creator);
         bountyContract.createOracleBounty{value: BOUNTY_MAX}(
-            nextId,
+            reportId,
             BOUNTY_START,
             creator,
             editor,
@@ -276,7 +269,7 @@ contract OracleBountyERC20Test is Test {
             bool recalled,
             bool timeType,
             bool recallOnClaim
-        ) = bountyContract.Bounty(nextId);
+        ) = bountyContract.Bounty(reportId);
 
         assertEq(totalDeposited, BOUNTY_MAX, "totalDeposited");
         assertEq(bountyStartAmt, BOUNTY_START, "bountyStartAmt");
@@ -296,13 +289,14 @@ contract OracleBountyERC20Test is Test {
     }
 
     function testCreateBounty_ERC20() public {
-        uint256 nextId = oracle.nextReportId();
+        // Create oracle report first
+        (uint256 reportId,) = _createOracleReport();
         uint256 bountyAmount = 10e18;
         uint256 creatorTokenBefore = bountyToken.balanceOf(creator);
 
         vm.prank(creator);
         bountyContract.createOracleBounty(
-            nextId,
+            reportId,
             0.5e18,
             creator,
             editor,
@@ -320,18 +314,19 @@ contract OracleBountyERC20Test is Test {
         assertEq(bountyToken.balanceOf(address(bountyContract)), bountyAmount, "Bounty contract should hold tokens");
 
         // Check bounty struct
-        (,,,,,,,, address bToken,,,,,,bool recallOnClaim) = bountyContract.Bounty(nextId);
+        (,,,,,,,, address bToken,,,,,,bool recallOnClaim) = bountyContract.Bounty(reportId);
         assertEq(bToken, address(bountyToken), "bountyToken should be set");
         assertTrue(recallOnClaim, "recallOnClaim should be true");
     }
 
     function testCreateBounty_WithForwardStart() public {
-        uint256 nextId = oracle.nextReportId();
+        // Create oracle report first
+        (uint256 reportId,) = _createOracleReport();
         uint256 forwardTime = 3600; // 1 hour forward
 
         vm.prank(creator);
         bountyContract.createOracleBountyFwd{value: BOUNTY_MAX}(
-            nextId,
+            reportId,
             BOUNTY_START,
             creator,
             editor,
@@ -345,13 +340,17 @@ contract OracleBountyERC20Test is Test {
             false
         );
 
-        (,,, uint256 start, uint256 fwdTime,,,,,,,,,,) = bountyContract.Bounty(nextId);
+        (,,, uint256 start, uint256 fwdTime,,,,,,,,,,) = bountyContract.Bounty(reportId);
         assertEq(start, block.timestamp + forwardTime, "start should be current + forward");
         assertEq(fwdTime, forwardTime, "forwardStartTime should be stored");
     }
 
     function testCreateBounty_RevertWrongReportId() public {
-        uint256 wrongId = oracle.nextReportId() + 1;
+        // Create oracle report first
+        (uint256 reportId,) = _createOracleReport();
+
+        // Try to use a wrong reportId (not the one we just created)
+        uint256 wrongId = reportId + 1;
 
         vm.prank(creator);
         vm.expectRevert(abi.encodeWithSelector(openOracleBounty.InvalidInput.selector, "wrong reportId"));
@@ -392,12 +391,13 @@ contract OracleBountyERC20Test is Test {
     }
 
     function testCreateBounty_RevertStartGreaterThanMax() public {
-        uint256 nextId = oracle.nextReportId();
+        // Create oracle report first
+        (uint256 reportId,) = _createOracleReport();
 
         vm.prank(creator);
         vm.expectRevert(abi.encodeWithSelector(openOracleBounty.InvalidInput.selector, "start > max"));
         bountyContract.createOracleBounty{value: BOUNTY_MAX}(
-            nextId,
+            reportId,
             BOUNTY_MAX + 1, // start > max
             creator,
             editor,
@@ -412,12 +412,13 @@ contract OracleBountyERC20Test is Test {
     }
 
     function testCreateBounty_RevertMultiplierTooLow() public {
-        uint256 nextId = oracle.nextReportId();
+        // Create oracle report first
+        (uint256 reportId,) = _createOracleReport();
 
         vm.prank(creator);
         vm.expectRevert(abi.encodeWithSelector(openOracleBounty.InvalidInput.selector, "bountyMultiplier too low"));
         bountyContract.createOracleBounty{value: BOUNTY_MAX}(
-            nextId,
+            reportId,
             BOUNTY_START,
             creator,
             editor,
@@ -487,13 +488,15 @@ contract OracleBountyERC20Test is Test {
     }
 
     function testSubmitInitialReport_RevertBeforeStartTime() public {
-        uint256 nextId = oracle.nextReportId();
         uint256 forwardTime = 3600;
+
+        // Create oracle report first
+        (uint256 reportId, bytes32 stateHash) = _createOracleReport();
 
         // Create bounty with forward start
         vm.prank(creator);
         bountyContract.createOracleBountyFwd{value: BOUNTY_MAX}(
-            nextId,
+            reportId,
             BOUNTY_START,
             creator,
             editor,
@@ -506,9 +509,6 @@ contract OracleBountyERC20Test is Test {
             ROUND_LENGTH,
             false
         );
-
-        // Create oracle report
-        (uint256 reportId, bytes32 stateHash) = _createOracleReport();
 
         // Try to submit before start time
         vm.prank(reporter);
@@ -669,7 +669,8 @@ contract OracleBountyERC20Test is Test {
     function testEditBounty_RetargetsToNewReportId() public {
         (uint256 oldReportId,) = _createBountyAndOracleReport(false);
 
-        uint256 newReportId = oracle.nextReportId();
+        // Create new oracle report first
+        (uint256 newReportId,) = _createOracleReport();
 
         vm.prank(editor);
         bountyContract.editBounty(oldReportId, newReportId);
@@ -687,7 +688,8 @@ contract OracleBountyERC20Test is Test {
     function testEditBounty_RevertNotEditor() public {
         (uint256 oldReportId,) = _createBountyAndOracleReport(false);
 
-        uint256 newReportId = oracle.nextReportId();
+        // Create new oracle report first
+        (uint256 newReportId,) = _createOracleReport();
 
         vm.prank(creator); // creator is not editor
         vm.expectRevert(abi.encodeWithSelector(openOracleBounty.InvalidInput.selector, "wrong caller"));
@@ -701,7 +703,8 @@ contract OracleBountyERC20Test is Test {
         vm.prank(creator);
         bountyContract.recallBounty(oldReportId);
 
-        uint256 newReportId = oracle.nextReportId();
+        // Create new oracle report first
+        (uint256 newReportId,) = _createOracleReport();
 
         vm.prank(editor);
         vm.expectRevert(abi.encodeWithSelector(openOracleBounty.InvalidInput.selector, "bounty recalled"));
@@ -737,12 +740,13 @@ contract OracleBountyERC20Test is Test {
         // Deploy a contract that rejects ETH
         ETHRejecter rejecter = new ETHRejecter();
 
-        uint256 nextId = oracle.nextReportId();
+        // Create oracle report first
+        (uint256 reportId, bytes32 stateHash) = _createOracleReport();
 
         // Create bounty with rejecter as the reporter recipient
         vm.prank(creator);
         bountyContract.createOracleBounty{value: BOUNTY_MAX}(
-            nextId,
+            reportId,
             BOUNTY_START,
             creator,
             editor,
@@ -754,8 +758,6 @@ contract OracleBountyERC20Test is Test {
             ROUND_LENGTH,
             false
         );
-
-        (uint256 reportId, bytes32 stateHash) = _createOracleReport();
 
         // Submit report with rejecter as reporter - ETH should go to tempHolding
         vm.prank(reporter);
@@ -824,11 +826,13 @@ contract OracleBountyERC20Test is Test {
     function testTempHolding_GetTempHolding_ETH_Success() public {
         ETHRejecter rejecter = new ETHRejecter();
 
+        // Create oracle report first
+        (uint256 reportId,) = _createOracleReport();
+
         // Setup: Get funds into tempHolding for rejecter
-        uint256 nextId = oracle.nextReportId();
         vm.prank(creator);
         bountyContract.createOracleBounty{value: BOUNTY_MAX}(
-            nextId,
+            reportId,
             BOUNTY_START,
             address(rejecter), // creator is rejecter
             editor,
@@ -840,11 +844,10 @@ contract OracleBountyERC20Test is Test {
             ROUND_LENGTH,
             false
         );
-        _createOracleReport();
 
         // Recall - will fail and go to tempHolding
         vm.prank(address(rejecter));
-        bountyContract.recallBounty(nextId);
+        bountyContract.recallBounty(reportId);
 
         assertEq(bountyContract.tempHolding(address(rejecter), address(0)), BOUNTY_MAX, "Should be in tempHolding");
 
@@ -956,11 +959,13 @@ contract OracleBountyERC20Test is Test {
     function testTempHolding_MultipleFailedTransfersAccumulate() public {
         ETHRejecter rejecter = new ETHRejecter();
 
+        // Create first oracle report
+        (uint256 reportId1,) = _createOracleReport();
+
         // Create first bounty with rejecter as creator
-        uint256 nextId1 = oracle.nextReportId();
         vm.prank(creator);
         bountyContract.createOracleBounty{value: BOUNTY_MAX}(
-            nextId1,
+            reportId1,
             BOUNTY_START,
             address(rejecter),
             editor,
@@ -972,19 +977,20 @@ contract OracleBountyERC20Test is Test {
             ROUND_LENGTH,
             false
         );
-        _createOracleReport();
 
         // Recall first bounty
         vm.prank(address(rejecter));
-        bountyContract.recallBounty(nextId1);
+        bountyContract.recallBounty(reportId1);
 
         assertEq(bountyContract.tempHolding(address(rejecter), address(0)), BOUNTY_MAX, "First recall in tempHolding");
 
+        // Create second oracle report
+        (uint256 reportId2,) = _createOracleReport();
+
         // Create second bounty with rejecter as creator
-        uint256 nextId2 = oracle.nextReportId();
         vm.prank(creator);
         bountyContract.createOracleBounty{value: BOUNTY_MAX}(
-            nextId2,
+            reportId2,
             BOUNTY_START,
             address(rejecter),
             editor,
@@ -996,11 +1002,10 @@ contract OracleBountyERC20Test is Test {
             ROUND_LENGTH,
             false
         );
-        _createOracleReport();
 
         // Recall second bounty
         vm.prank(address(rejecter));
-        bountyContract.recallBounty(nextId2);
+        bountyContract.recallBounty(reportId2);
 
         // Should have accumulated
         assertEq(bountyContract.tempHolding(address(rejecter), address(0)), BOUNTY_MAX * 2, "Both recalls accumulated in tempHolding");
