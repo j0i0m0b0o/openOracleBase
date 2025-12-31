@@ -128,8 +128,8 @@ contract openOracleBounty is ReentrancyGuard {
     }
 
     /**
-     * @notice Exponential bounty for an initial reporter in openOracle. Must be called atomically and just prior to createReportInstance() in the oracle
-     * @param reportId The unique identifier for the openOracle report instance. Must be oracle.nextReportId()
+     * @notice Exponential bounty for an initial reporter in openOracle. Must be called atomically and just after createReportInstance() in the oracle
+     * @param reportId The unique identifier for the openOracle report instance. Must be oracle.nextReportId() - 1
      * @param bountyStartAmt Starting bounty amount in wei
      * @param creator Address to receive any unclaimed wei back
      * @param editor Optional address that can redirect your bounty to a new reportId
@@ -149,7 +149,9 @@ contract openOracleBounty is ReentrancyGuard {
         if (Bounty[reportId].maxRounds > 0) revert InvalidInput("reportId has bounty");      
         if (bountyToken == address(0) && maxAmount != msg.value) revert InvalidInput("msg.value wrong");
         if (bountyStartAmt > maxAmount) revert InvalidInput("start > max");
-        if (reportId != oracle.nextReportId()) revert InvalidInput("wrong reportId"); //call function right before creating the report instance so nobody can grief
+        if (reportId != oracle.nextReportId() - 1) revert InvalidInput("wrong reportId"); // create report instance right before creating bounty
+        if (oracle.reportStatus(reportId).currentReporter != address(0)) revert InvalidInput("reportId has a report");
+
         if (timeType ? block.timestamp > start : block.number > start) revert InvalidInput("startHeight too low");
         if (bountyMultiplier < 10001) revert InvalidInput("bountyMultiplier too low");
         if (bountyToken != address(0) && msg.value > 0) revert InvalidInput("msg.value with wrong bountyToken");
@@ -216,7 +218,9 @@ contract openOracleBounty is ReentrancyGuard {
     function editBounty(uint256 reportId, uint256 newReportId) external nonReentrant {
         Bounties storage bounty = Bounty[reportId];
         if (msg.sender != bounty.editor) revert InvalidInput("wrong caller");
-        if (newReportId != oracle.nextReportId()) revert InvalidInput("wrong reportId"); //call function right before creating the report instance so nobody can grief
+        if (newReportId != oracle.nextReportId() - 1) revert InvalidInput("wrong reportId"); // create report instance right before creating bounty
+        if (oracle.reportStatus(newReportId).currentReporter != address(0)) revert InvalidInput("reportId has a report");
+        if (Bounty[newReportId].maxRounds > 0) revert InvalidInput("newReportId has bounty");
         if (bounty.recalled) revert InvalidInput("bounty recalled");
         if (bounty.maxRounds == 0) revert InvalidInput("bounty doesnt exist");
 
