@@ -25,11 +25,6 @@ import {oracleFeeReceiver} from "./oracleFeeReceiver.sol";
  * @custom:documentation https://openprices.gitbook.io/openoracle-docs
  */
 
- //TODO: fixed gasCompensation paid to matcher by swapper? separates linear costs from fixed
- //TODO: make the fulfillment fee a capped increasing bounty
- //TODO: add overload swap() with gasCompensation capped at 0.05 eth, other overload can be free to choose
- //TODO: optional max slippage ignored by matcher (but applies to swapper) for blind firing? maybe too complex
- //THIS CONTRACT IS JUST A SKETCH SO FAR
  
 contract openSwap is ReentrancyGuard {
     using SafeERC20 for IERC20;
@@ -89,7 +84,7 @@ contract openSwap is ReentrancyGuard {
     }
 
     struct SlippageParams {
-        uint256 priceTolerated; // one of two max slippage inputs. current price at time of swap, formatted as priceTolerated = 225073570923495617630012810 => (1e30 / priceTolerated) = $4442.99 for WETH/USDC trading (sellToken WETH/ETH buyToken USDC)
+        uint256 priceTolerated; // one of two max slippage inputs. current price at time of swap, formatted as priceTolerated = 225073570923495617630012810 implies (1e30 / priceTolerated) = $4442.99 for WETH/USDC trading (sellToken WETH/ETH buyToken USDC)
                                 //should match oracle game price calculation (respecting PRICE_PRECISION semantics)
         uint24 toleranceRange; // 100000 = 1%, max slippage against priceTolerated
     }
@@ -108,7 +103,7 @@ contract openSwap is ReentrancyGuard {
     event SingleFee(uint256 swapId, uint256 fulfillmentFee);
     event SwapRefunded(uint256 swapId, address swapper, address matcher);
     event SwapExecuted(address indexed swapper, address indexed matcher, uint256 swapId, uint256 sellTokenAmt, uint256 buyTokenAmt);
-    event SwapMatched(uint256 swapId, uint256 fulfillmentFee, address matcher);
+    event SwapMatched(uint256 swapId, uint256 fulfillmentFee, address matcher, uint256 reportId);
     event FeesTransferred(address buyToken, address sellToken, address feeRecipientContract);
 
     /**
@@ -118,7 +113,7 @@ contract openSwap is ReentrancyGuard {
      * @param minOut Minimum amount of buyToken to receive
      * @param buyToken Token address to buy
      * @param minFulfillLiquidity Matcher must supply this amount of buyToken. Should include a buffer above market price to prevent refunds.
-     * @param expiration Timestamp when swap can no longer be matched.
+     * @param expiration Number of seconds after this transaction lands in a block when swap can no longer be matched.
      * @param bountyAmount Max amount paid to initial reporter. Minimum paid is bountyAmount / 10 and increases over time up to bountyAmount.
      * @param oracleParams Oracle game parameters: see OracleParams for comments
      * @param slippageParams Slippage parameters: see SlippageParams for comments
@@ -166,7 +161,7 @@ contract openSwap is ReentrancyGuard {
         s.minOut = minOut;
         s.buyToken = buyToken;
         s.minFulfillLiquidity =  minFulfillLiquidity;
-        s.expiration = expiration;
+        s.expiration = block.timestamp + expiration;
         s.active = true;
         s.requiredBounty = bountyAmount;
         s.oracleParams = oracleParams;
@@ -246,7 +241,7 @@ contract openSwap is ReentrancyGuard {
         s.reportId = reportId;
         reportIdToSwapId[reportId] = swapId;
 
-        emit SwapMatched(swapId, s.fulfillmentFee, s.matcher);
+        emit SwapMatched(swapId, s.fulfillmentFee, s.matcher, reportId);
 
     }
 
@@ -339,7 +334,6 @@ contract openSwap is ReentrancyGuard {
         fulfillAmt -= fulfillAmt * s.fulfillmentFee / 1e7;
         bool slippageOk = toleranceCheck(price, s.slippageParams.priceTolerated, s.slippageParams.toleranceRange);
 
-        // maybe we dont need minOut anymore?
         if (fulfillAmt > s.minFulfillLiquidity || fulfillAmt < s.minOut || !slippageOk) {
             refund(s.sellToken, s.sellAmt, s.swapper, s.buyToken, s.minFulfillLiquidity, s.matcher);
             emit SwapRefunded(swapId, s.swapper, s.matcher);
