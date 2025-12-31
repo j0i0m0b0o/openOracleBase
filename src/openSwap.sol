@@ -222,8 +222,10 @@ contract openSwap is ReentrancyGuard {
             s.feeRecipient = address(feeReceiver);
         }
 
+        uint256 reportId = oracleGame(s);
+
         bounty.createOracleBountyFwd{value: s.requiredBounty} (
-            oracle.nextReportId(),
+            reportId,
             s.requiredBounty / 20,
             s.swapper,
             address(this),
@@ -237,7 +239,6 @@ contract openSwap is ReentrancyGuard {
             false
         );
 
-        uint256 reportId = oracleGame(s);
         s.reportId = reportId;
         reportIdToSwapId[reportId] = swapId;
 
