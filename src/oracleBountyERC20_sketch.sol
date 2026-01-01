@@ -128,7 +128,7 @@ contract openOracleBounty is ReentrancyGuard {
     }
 
     /**
-     * @notice Exponential bounty for an initial reporter in openOracle. Must be called atomically and just after createReportInstance() in the oracle
+     * @notice Exponential bounty for an initial reporter in openOracle. Must be called atomically with and just after createReportInstance() in the oracle
      * @param reportId The unique identifier for the openOracle report instance. Must be oracle.nextReportId() - 1
      * @param bountyStartAmt Starting bounty amount in wei
      * @param creator Address to receive any unclaimed wei back
@@ -211,9 +211,9 @@ contract openOracleBounty is ReentrancyGuard {
     }
 
     /**
-     * @notice Allows bounty editor to redirect the full or unclaimed bounty to a new reportId
+     * @notice Allows bounty editor to redirect the full or unclaimed bounty to a new reportId. Must be called atomically with and just after createReportInstance() in the oracle
      * @param reportId The unique identifier for the openOracle report instance for which there is a bounty
-     * @param newReportId The unique identifier for the new openOracle report instance for which a bounty is desired
+     * @param newReportId The unique identifier for the new openOracle report instance for which a bounty is desired. Must be oracle.nextReportId() - 1.
      */
     function editBounty(uint256 reportId, uint256 newReportId) external nonReentrant {
         Bounties storage bounty = Bounty[reportId];
