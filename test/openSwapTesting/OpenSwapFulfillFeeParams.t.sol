@@ -92,9 +92,12 @@ contract OpenSwapFulfillFeeParamsTest is Test {
             settlementTime: SETTLEMENT_TIME,
             latencyBailout: LATENCY_BAILOUT,
             maxGameTime: MAX_GAME_TIME,
+            blocksPerSecond: 500,
             disputeDelay: DISPUTE_DELAY,
             swapFee: SWAP_FEE,
-            protocolFee: PROTOCOL_FEE
+            protocolFee: PROTOCOL_FEE,
+            multiplier: 110,
+            timeType: true
         });
     }
 
@@ -311,6 +314,7 @@ contract OpenSwapFulfillFeeParamsTest is Test {
 
         // Wait one round
         vm.warp(block.timestamp + 60);
+        vm.roll(block.number + 30);
 
         _matchSwap(swapId);
 
@@ -333,6 +337,7 @@ contract OpenSwapFulfillFeeParamsTest is Test {
 
         // Wait two rounds
         vm.warp(block.timestamp + 120);
+        vm.roll(block.number + 60);
 
         _matchSwap(swapId);
 
@@ -355,6 +360,7 @@ contract OpenSwapFulfillFeeParamsTest is Test {
 
         // Wait many rounds (would be 10000 * 1.5^5 = 75937 without cap)
         vm.warp(block.timestamp + 300);
+        vm.roll(block.number + 150);
 
         _matchSwap(swapId);
 
@@ -376,6 +382,7 @@ contract OpenSwapFulfillFeeParamsTest is Test {
 
         // Wait 10 rounds (but maxRounds = 3)
         vm.warp(block.timestamp + 600);
+        vm.roll(block.number + 300);
 
         _matchSwap(swapId);
 
@@ -398,6 +405,7 @@ contract OpenSwapFulfillFeeParamsTest is Test {
 
         // Wait less than one round
         vm.warp(block.timestamp + 59);
+        vm.roll(block.number + 29);
 
         _matchSwap(swapId);
 
@@ -427,6 +435,7 @@ contract OpenSwapFulfillFeeParamsTest is Test {
         // Set a known starting timestamp
         uint256 startTime = 1000;
         vm.warp(startTime);
+        vm.roll(block.number + 500);
 
         openSwap.FulfillFeeParams memory feeParams = openSwap.FulfillFeeParams({
             startFulfillFeeIncrease: 0,
@@ -443,9 +452,11 @@ contract OpenSwapFulfillFeeParamsTest is Test {
         assertEq(swapContract.getCurrentFulfillmentFee(swapId), 10000, "Fee at t=0");
 
         vm.warp(startTime + 60);
+        vm.roll(block.number + 30);
         assertEq(swapContract.getCurrentFulfillmentFee(swapId), 15000, "Fee at t=60");
 
         vm.warp(startTime + 120);
+        vm.roll(block.number + 30);
         assertEq(swapContract.getCurrentFulfillmentFee(swapId), 22500, "Fee at t=120");
     }
 
@@ -589,6 +600,7 @@ contract OpenSwapFulfillFeeParamsTest is Test {
         bountyContract.submitInitialReport(s.reportId, INITIAL_LIQUIDITY, 2000e18, stateHash, initialReporter);
 
         vm.warp(block.timestamp + SETTLEMENT_TIME + 1);
+        vm.roll(block.number + (SETTLEMENT_TIME + 1) / 2);
         vm.prank(settler);
         oracle.settle(s.reportId);
 
@@ -654,6 +666,7 @@ contract OpenSwapFulfillFeeParamsTest is Test {
 
         // Wait one round
         vm.warp(block.timestamp + 60);
+        vm.roll(block.number + 30);
         _matchSwap(swapId);
 
         openSwap.Swap memory s = swapContract.getSwap(swapId);
@@ -662,6 +675,7 @@ contract OpenSwapFulfillFeeParamsTest is Test {
 
         // Wait more time - fee in struct should NOT change
         vm.warp(block.timestamp + 300);
+        vm.roll(block.number + 150);
 
         openSwap.Swap memory sAfter = swapContract.getSwap(swapId);
         assertEq(sAfter.fulfillmentFee, lockedFee, "Fee should remain locked after match");

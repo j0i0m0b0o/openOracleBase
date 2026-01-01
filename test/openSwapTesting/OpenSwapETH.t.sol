@@ -96,9 +96,12 @@ contract OpenSwapETHTest is Test {
             settlementTime: SETTLEMENT_TIME,
             latencyBailout: LATENCY_BAILOUT,
             maxGameTime: MAX_GAME_TIME,
+            blocksPerSecond: 500,
             disputeDelay: DISPUTE_DELAY,
             swapFee: SWAP_FEE,
-            protocolFee: PROTOCOL_FEE
+            protocolFee: PROTOCOL_FEE,
+            multiplier: 110,
+            timeType: true
         });
     }
 
@@ -199,6 +202,7 @@ contract OpenSwapETHTest is Test {
         bountyContract.submitInitialReport(s.reportId, INITIAL_LIQUIDITY, 2000e18, stateHash, initialReporter);
 
         vm.warp(block.timestamp + SETTLEMENT_TIME + 1);
+        vm.roll(block.number + (SETTLEMENT_TIME + 1) / 2);
         vm.prank(settler);
         oracle.settle(s.reportId);
 
@@ -358,6 +362,7 @@ contract OpenSwapETHTest is Test {
         bountyContract.submitInitialReport(s.reportId, INITIAL_LIQUIDITY, 5e16, stateHash, initialReporter);
 
         vm.warp(block.timestamp + SETTLEMENT_TIME + 1);
+        vm.roll(block.number + (SETTLEMENT_TIME + 1) / 2);
 
         vm.prank(settler);
         oracle.settle(s.reportId);
@@ -469,7 +474,7 @@ contract OpenSwapETHTest is Test {
         vm.startPrank(matcher);
         bytes32 swapHash = swapContract.getSwapHash(swapId);
 
-        vm.expectRevert(abi.encodeWithSelector(openSwap.InvalidInput.selector, "selling eth but no msg.value"));
+        vm.expectRevert(abi.encodeWithSelector(openSwap.InvalidInput.selector, "msg.value must be 0"));
         swapContract.matchSwap{value: 1 ether}(swapId, swapHash);
 
         vm.stopPrank();
@@ -507,6 +512,7 @@ contract OpenSwapETHTest is Test {
 
         // Warp past latency bailout
         vm.warp(block.timestamp + LATENCY_BAILOUT + 1);
+        vm.roll(block.number + (LATENCY_BAILOUT + 1) / 2);
         swapContract.bailOut(swapId);
 
         // Verify swap finished
@@ -549,6 +555,7 @@ contract OpenSwapETHTest is Test {
 
         // Warp past latency bailout
         vm.warp(block.timestamp + LATENCY_BAILOUT + 1);
+        vm.roll(block.number + (LATENCY_BAILOUT + 1) / 2);
         swapContract.bailOut(swapId);
 
         // Verify refunds (matcher also received gasCompensation at match time)

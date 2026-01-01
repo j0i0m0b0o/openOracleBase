@@ -100,9 +100,12 @@ contract OpenSwapProtocolFeesTest is Test {
             settlementTime: SETTLEMENT_TIME,
             latencyBailout: LATENCY_BAILOUT,
             maxGameTime: MAX_GAME_TIME,
+            blocksPerSecond: 500,
             disputeDelay: DISPUTE_DELAY,
             swapFee: SWAP_FEE,
-            protocolFee: protocolFee
+            protocolFee: protocolFee,
+            multiplier: 110,
+            timeType: true
         });
 
         openSwap.SlippageParams memory slippageParams = openSwap.SlippageParams({
@@ -158,6 +161,7 @@ contract OpenSwapProtocolFeesTest is Test {
     function _settleSwap(uint256 swapId) internal {
         openSwap.Swap memory s = swapContract.getSwap(swapId);
         vm.warp(block.timestamp + SETTLEMENT_TIME + 1);
+        vm.roll(block.number + (SETTLEMENT_TIME + 1) / 2);
         vm.prank(settler);
         oracle.settle(s.reportId);
     }

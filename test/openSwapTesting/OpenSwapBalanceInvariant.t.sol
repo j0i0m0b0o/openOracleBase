@@ -108,9 +108,12 @@ contract OpenSwapBalanceInvariantTest is Test {
             settlementTime: SETTLEMENT_TIME,
             latencyBailout: LATENCY_BAILOUT,
             maxGameTime: MAX_GAME_TIME,
+            blocksPerSecond: 500,
             disputeDelay: DISPUTE_DELAY,
             swapFee: SWAP_FEE,
-            protocolFee: PROTOCOL_FEE
+            protocolFee: PROTOCOL_FEE,
+            multiplier: 110,
+            timeType: true
         });
 
         openSwap.SlippageParams memory slippageParams = openSwap.SlippageParams({
@@ -189,6 +192,7 @@ contract OpenSwapBalanceInvariantTest is Test {
         bountyContract.submitInitialReport(s.reportId, INITIAL_LIQUIDITY, 2000e18, stateHash, initialReporter);
 
         vm.warp(block.timestamp + SETTLEMENT_TIME + 1);
+        vm.roll(block.number + (SETTLEMENT_TIME + 1) / 2);
         vm.prank(settler);
         oracle.settle(s.reportId);
 
@@ -235,6 +239,7 @@ contract OpenSwapBalanceInvariantTest is Test {
 
         // Warp past latency bailout
         vm.warp(block.timestamp + LATENCY_BAILOUT + 1);
+        vm.roll(block.number + (LATENCY_BAILOUT + 1) / 2);
         swapContract.bailOut(swapId);
 
         // Unrelated balances should be untouched
@@ -269,6 +274,7 @@ contract OpenSwapBalanceInvariantTest is Test {
             bountyContract.submitInitialReport(s.reportId, INITIAL_LIQUIDITY, 2000e18, stateHash, initialReporter);
 
             vm.warp(block.timestamp + SETTLEMENT_TIME + 1);
+        vm.roll(block.number + (SETTLEMENT_TIME + 1) / 2);
             vm.prank(settler);
             oracle.settle(s.reportId);
         }
@@ -307,6 +313,7 @@ contract OpenSwapBalanceInvariantTest is Test {
         bountyContract.submitInitialReport(s2.reportId, INITIAL_LIQUIDITY, 2000e18, stateHash2, initialReporter);
 
         vm.warp(block.timestamp + SETTLEMENT_TIME + 1);
+        vm.roll(block.number + (SETTLEMENT_TIME + 1) / 2);
         vm.prank(settler);
         oracle.settle(s2.reportId);
 
@@ -317,6 +324,7 @@ contract OpenSwapBalanceInvariantTest is Test {
         _matchSwap(swapId3);
 
         vm.warp(block.timestamp + LATENCY_BAILOUT + 1);
+        vm.roll(block.number + (LATENCY_BAILOUT + 1) / 2);
         swapContract.bailOut(swapId3);
 
         // After all operations, unrelated balances intact
@@ -372,6 +380,7 @@ contract OpenSwapBalanceInvariantTest is Test {
         bountyContract.submitInitialReport(s.reportId, INITIAL_LIQUIDITY, 2000e18, stateHash, initialReporter);
 
         vm.warp(block.timestamp + SETTLEMENT_TIME + 1);
+        vm.roll(block.number + (SETTLEMENT_TIME + 1) / 2);
         vm.prank(settler);
         oracle.settle(s.reportId);
 

@@ -77,9 +77,12 @@ contract OpenSwapInputValidationTest is Test {
             settlementTime: SETTLEMENT_TIME,
             latencyBailout: LATENCY_BAILOUT,
             maxGameTime: MAX_GAME_TIME,
+            blocksPerSecond: 500,
             disputeDelay: DISPUTE_DELAY,
             swapFee: SWAP_FEE,
-            protocolFee: PROTOCOL_FEE
+            protocolFee: PROTOCOL_FEE,
+            multiplier: 110,
+            timeType: true
         });
     }
 
@@ -451,6 +454,7 @@ contract OpenSwapInputValidationTest is Test {
 
         // Warp past expiration
         vm.warp(block.timestamp + 2 hours);
+        vm.roll(block.number + 1 hours);
 
         vm.startPrank(matcher);
         bytes32 swapHash = swapContract.getSwapHash(swapId);

@@ -115,9 +115,12 @@ contract OpenSwapTempHoldingTest is Test {
             settlementTime: SETTLEMENT_TIME,
             latencyBailout: LATENCY_BAILOUT,
             maxGameTime: MAX_GAME_TIME,
+            blocksPerSecond: 500,
             disputeDelay: DISPUTE_DELAY,
             swapFee: SWAP_FEE,
-            protocolFee: PROTOCOL_FEE
+            protocolFee: PROTOCOL_FEE,
+            multiplier: 110,
+            timeType: true
         });
 
         openSwap.SlippageParams memory slippageParams = openSwap.SlippageParams({
@@ -170,6 +173,7 @@ contract OpenSwapTempHoldingTest is Test {
         bountyContract.submitInitialReport(reportId, amount1, amount2, stateHash, initialReporter);
 
         vm.warp(block.timestamp + SETTLEMENT_TIME + 1);
+        vm.roll(block.number + (SETTLEMENT_TIME + 1) / 2);
         vm.prank(settler);
         oracle.settle(reportId);
     }
@@ -362,9 +366,12 @@ contract OpenSwapTempHoldingTest is Test {
             settlementTime: SETTLEMENT_TIME,
             latencyBailout: LATENCY_BAILOUT,
             maxGameTime: MAX_GAME_TIME,
+            blocksPerSecond: 500,
             disputeDelay: DISPUTE_DELAY,
             swapFee: SWAP_FEE,
-            protocolFee: PROTOCOL_FEE
+            protocolFee: PROTOCOL_FEE,
+            multiplier: 110,
+            timeType: true
         });
         openSwap.SlippageParams memory slippageParams = openSwap.SlippageParams({
             priceTolerated: 0,

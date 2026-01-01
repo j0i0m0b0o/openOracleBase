@@ -82,9 +82,12 @@ contract OpenSwapCancellationTest is Test {
             settlementTime: SETTLEMENT_TIME,
             latencyBailout: LATENCY_BAILOUT,
             maxGameTime: MAX_GAME_TIME,
+            blocksPerSecond: 500,
             disputeDelay: DISPUTE_DELAY,
             swapFee: SWAP_FEE,
-            protocolFee: PROTOCOL_FEE
+            protocolFee: PROTOCOL_FEE,
+            multiplier: 110,
+            timeType: true
         });
 
         openSwap.SlippageParams memory slippageParams = openSwap.SlippageParams({
@@ -208,6 +211,7 @@ contract OpenSwapCancellationTest is Test {
 
         // Warp past latency bailout time without initial report
         vm.warp(block.timestamp + LATENCY_BAILOUT + 1);
+        vm.roll(block.number + (LATENCY_BAILOUT + 1) / 2);
 
         // Anyone can call bailOut
         vm.prank(randomUser);
@@ -251,6 +255,7 @@ contract OpenSwapCancellationTest is Test {
 
         // Warp past latency bailout
         vm.warp(block.timestamp + LATENCY_BAILOUT + 1);
+        vm.roll(block.number + (LATENCY_BAILOUT + 1) / 2);
 
         // First bailout succeeds
         swapContract.bailOut(swapId);
@@ -290,6 +295,7 @@ contract OpenSwapCancellationTest is Test {
         vm.stopPrank();
 
         vm.warp(block.timestamp + SETTLEMENT_TIME + 1);
+        vm.roll(block.number + (SETTLEMENT_TIME + 1) / 2);
         oracle.settle(reportId);
 
         // Swap should be finished via callback
@@ -321,6 +327,7 @@ contract OpenSwapCancellationTest is Test {
         vm.stopPrank();
 
         vm.warp(block.timestamp + SETTLEMENT_TIME + 1);
+        vm.roll(block.number + (SETTLEMENT_TIME + 1) / 2);
 
         // Mock the onSettle callback to revert (simulating callback failure)
         vm.mockCallRevert(
@@ -373,6 +380,7 @@ contract OpenSwapCancellationTest is Test {
 
         // Warp to exactly latency bailout time - should be no-op (need to be > not >=)
         vm.warp(matchTime + LATENCY_BAILOUT);
+        vm.roll(block.number + LATENCY_BAILOUT / 2);
         swapContract.bailOut(swapId);
 
         openSwap.Swap memory sMid = swapContract.getSwap(swapId);
@@ -380,6 +388,7 @@ contract OpenSwapCancellationTest is Test {
 
         // Warp 1 second more - should succeed
         vm.warp(matchTime + LATENCY_BAILOUT + 1);
+        vm.roll(block.number + 1);
         swapContract.bailOut(swapId);
 
         openSwap.Swap memory sAfter = swapContract.getSwap(swapId);

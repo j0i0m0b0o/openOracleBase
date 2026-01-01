@@ -95,9 +95,12 @@ contract OpenSwapMaxGameTimeTest is Test {
             settlementTime: SETTLEMENT_TIME,
             latencyBailout: LATENCY_BAILOUT,
             maxGameTime: MAX_GAME_TIME,
+            blocksPerSecond: 500,
             disputeDelay: DISPUTE_DELAY,
             swapFee: SWAP_FEE,
-            protocolFee: PROTOCOL_FEE
+            protocolFee: PROTOCOL_FEE,
+            multiplier: 110,
+            timeType: true
         });
 
         openSwap.SlippageParams memory slippageParams = openSwap.SlippageParams({
@@ -143,9 +146,12 @@ contract OpenSwapMaxGameTimeTest is Test {
             settlementTime: SETTLEMENT_TIME,
             latencyBailout: LATENCY_BAILOUT,
             maxGameTime: maxGameTime,
+            blocksPerSecond: 500,
             disputeDelay: DISPUTE_DELAY,
             swapFee: SWAP_FEE,
-            protocolFee: PROTOCOL_FEE
+            protocolFee: PROTOCOL_FEE,
+            multiplier: 110,
+            timeType: true
         });
 
         openSwap.SlippageParams memory slippageParams = openSwap.SlippageParams({
@@ -215,6 +221,7 @@ contract OpenSwapMaxGameTimeTest is Test {
 
         // Warp past maxGameTime
         vm.warp(block.timestamp + MAX_GAME_TIME + 1);
+        vm.roll(block.number + (MAX_GAME_TIME + 1) / 2);
 
         // Anyone can call bailout
         vm.prank(randomUser);
@@ -237,6 +244,7 @@ contract OpenSwapMaxGameTimeTest is Test {
 
         // Warp to just before maxGameTime
         vm.warp(block.timestamp + MAX_GAME_TIME - 1);
+        vm.roll(block.number + (MAX_GAME_TIME - 1) / 2);
 
         openSwap.Swap memory sBefore = swapContract.getSwap(swapId);
         assertFalse(sBefore.finished, "Should not be finished");
@@ -259,6 +267,7 @@ contract OpenSwapMaxGameTimeTest is Test {
 
         // Warp to exactly maxGameTime (not exceeded yet)
         vm.warp(block.timestamp + MAX_GAME_TIME);
+        vm.roll(block.number + MAX_GAME_TIME / 2);
 
         // Bailout should not work - condition is > not >=
         vm.prank(randomUser);
@@ -269,6 +278,7 @@ contract OpenSwapMaxGameTimeTest is Test {
 
         // Warp 1 more second
         vm.warp(block.timestamp + 1);
+        vm.roll(block.number + 1);
 
         vm.prank(randomUser);
         swapContract.bailOut(swapId);
@@ -286,6 +296,7 @@ contract OpenSwapMaxGameTimeTest is Test {
 
         // Now warp past maxGameTime (but not settlement time from last report)
         vm.warp(block.timestamp + MAX_GAME_TIME + 1);
+        vm.roll(block.number + (MAX_GAME_TIME + 1) / 2);
 
         // Bailout should work despite game not being settled
         vm.prank(randomUser);
@@ -304,6 +315,7 @@ contract OpenSwapMaxGameTimeTest is Test {
 
         // Warp past latencyBailout but not maxGameTime
         vm.warp(block.timestamp + LATENCY_BAILOUT + 100);
+        vm.roll(block.number + (LATENCY_BAILOUT + 100) / 2);
 
         // Bailout should not work - isLatent requires reportTimestamp == 0
         vm.prank(randomUser);
@@ -314,6 +326,7 @@ contract OpenSwapMaxGameTimeTest is Test {
 
         // Now warp past maxGameTime
         vm.warp(block.timestamp + MAX_GAME_TIME);
+        vm.roll(block.number + MAX_GAME_TIME / 2);
 
         vm.prank(randomUser);
         swapContract.bailOut(swapId);
@@ -328,6 +341,7 @@ contract OpenSwapMaxGameTimeTest is Test {
         _submitReport(swapId, INITIAL_LIQUIDITY, 2000e18);
 
         vm.warp(block.timestamp + MAX_GAME_TIME + 1);
+        vm.roll(block.number + (MAX_GAME_TIME + 1) / 2);
 
         // Random user (not swapper, not matcher) can call
         address nobody = address(0xDEAD);
@@ -347,6 +361,7 @@ contract OpenSwapMaxGameTimeTest is Test {
         uint256 matcherBuyBefore = buyToken.balanceOf(matcher);
 
         vm.warp(block.timestamp + MAX_GAME_TIME + 1);
+        vm.roll(block.number + (MAX_GAME_TIME + 1) / 2);
         swapContract.bailOut(swapId);
 
         // Verify exact refund amounts
@@ -365,6 +380,7 @@ contract OpenSwapMaxGameTimeTest is Test {
 
         // Warp past maxGameTime
         vm.warp(block.timestamp + MAX_GAME_TIME + 1);
+        vm.roll(block.number + (MAX_GAME_TIME + 1) / 2);
 
         (,,,,,,,,,,,, bool recalledBefore,,) = bountyContract.Bounty(reportId);
         assertFalse(recalledBefore, "Bounty should not be recalled before bailout");
@@ -381,6 +397,7 @@ contract OpenSwapMaxGameTimeTest is Test {
         _submitReport(swapId, INITIAL_LIQUIDITY, 2000e18);
 
         vm.warp(block.timestamp + MAX_GAME_TIME + 1);
+        vm.roll(block.number + (MAX_GAME_TIME + 1) / 2);
         swapContract.bailOut(swapId);
 
         // Second bailout should revert
@@ -399,6 +416,7 @@ contract OpenSwapMaxGameTimeTest is Test {
 
         // Warp past minMaxGameTime
         vm.warp(block.timestamp + minMaxGameTime + 1);
+        vm.roll(block.number + (minMaxGameTime + 1) / 2);
 
         swapContract.bailOut(swapId);
 
@@ -417,9 +435,12 @@ contract OpenSwapMaxGameTimeTest is Test {
             settlementTime: SETTLEMENT_TIME,
             latencyBailout: LATENCY_BAILOUT,
             maxGameTime: SETTLEMENT_TIME * 20 - 1, // Below minimum
+            blocksPerSecond: 500,
             disputeDelay: DISPUTE_DELAY,
             swapFee: SWAP_FEE,
-            protocolFee: PROTOCOL_FEE
+            protocolFee: PROTOCOL_FEE,
+            multiplier: 110,
+            timeType: true
         });
 
         openSwap.SlippageParams memory slippageParams = openSwap.SlippageParams({

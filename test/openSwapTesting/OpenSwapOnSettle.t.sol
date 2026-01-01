@@ -94,9 +94,12 @@ contract OpenSwapOnSettleTest is Test {
             settlementTime: SETTLEMENT_TIME,
             latencyBailout: LATENCY_BAILOUT,
             maxGameTime: MAX_GAME_TIME,
+            blocksPerSecond: 500,
             disputeDelay: DISPUTE_DELAY,
             swapFee: SWAP_FEE,
-            protocolFee: PROTOCOL_FEE
+            protocolFee: PROTOCOL_FEE,
+            multiplier: 110,
+            timeType: true
         });
 
         openSwap.SlippageParams memory slippageParams = openSwap.SlippageParams({
@@ -238,6 +241,7 @@ contract OpenSwapOnSettleTest is Test {
 
         // First settle via oracle (normal flow)
         vm.warp(block.timestamp + SETTLEMENT_TIME + 1);
+        vm.roll(block.number + (SETTLEMENT_TIME + 1) / 2);
         vm.prank(settler);
         oracle.settle(reportId);
 
@@ -265,6 +269,7 @@ contract OpenSwapOnSettleTest is Test {
         assertFalse(s.finished, "Swap should not be finished yet");
 
         vm.warp(block.timestamp + SETTLEMENT_TIME + 1);
+        vm.roll(block.number + (SETTLEMENT_TIME + 1) / 2);
         vm.prank(settler);
         oracle.settle(reportId);
 
@@ -282,6 +287,7 @@ contract OpenSwapOnSettleTest is Test {
         uint256 reportId = s.reportId;
 
         vm.warp(block.timestamp + SETTLEMENT_TIME + 1);
+        vm.roll(block.number + (SETTLEMENT_TIME + 1) / 2);
         vm.prank(settler);
         oracle.settle(reportId);
 
@@ -304,6 +310,7 @@ contract OpenSwapOnSettleTest is Test {
         uint256 reportId1 = s1.reportId;
 
         vm.warp(block.timestamp + SETTLEMENT_TIME + 1);
+        vm.roll(block.number + (SETTLEMENT_TIME + 1) / 2);
         vm.prank(settler);
         oracle.settle(reportId1);
 
@@ -325,6 +332,10 @@ contract OpenSwapOnSettleTest is Test {
 
         openSwap.Swap memory s = swapContract.getSwap(swapId);
         uint256 reportId = s.reportId;
+
+        // Advance time/blocks to pass impliedBlocksPerSecond check
+        vm.warp(block.timestamp + SETTLEMENT_TIME + 1);
+        vm.roll(block.number + (SETTLEMENT_TIME + 1) / 2);
 
         // Directly call onSettle as oracle (bypassing oracle.settle)
         // This simulates what the oracle does internally

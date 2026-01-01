@@ -94,9 +94,12 @@ contract OpenSwapMatchSwapTest is Test {
             settlementTime: SETTLEMENT_TIME,
             latencyBailout: LATENCY_BAILOUT,
             maxGameTime: MAX_GAME_TIME,
+            blocksPerSecond: 500,
             disputeDelay: DISPUTE_DELAY,
             swapFee: SWAP_FEE,
-            protocolFee: PROTOCOL_FEE
+            protocolFee: PROTOCOL_FEE,
+            multiplier: 110,
+            timeType: true
         });
 
         openSwap.SlippageParams memory slippageParams = openSwap.SlippageParams({
@@ -172,6 +175,7 @@ contract OpenSwapMatchSwapTest is Test {
 
         uint256 matchTimestamp = block.timestamp + 100;
         vm.warp(matchTimestamp);
+        vm.roll(block.number + 50);
 
         vm.startPrank(matcher);
         bytes32 swapHash = swapContract.getSwapHash(swapId);

@@ -95,9 +95,12 @@ contract OpenSwapBountyRecallTest is Test {
             settlementTime: SETTLEMENT_TIME,
             latencyBailout: LATENCY_BAILOUT,
             maxGameTime: MAX_GAME_TIME,
+            blocksPerSecond: 500,
             disputeDelay: DISPUTE_DELAY,
             swapFee: SWAP_FEE,
-            protocolFee: PROTOCOL_FEE
+            protocolFee: PROTOCOL_FEE,
+            multiplier: 110,
+            timeType: true
         });
 
         openSwap.SlippageParams memory slippageParams = openSwap.SlippageParams({
@@ -150,6 +153,7 @@ contract OpenSwapBountyRecallTest is Test {
         bountyContract.submitInitialReport(reportId, amount1, amount2, stateHash, initialReporter);
 
         vm.warp(block.timestamp + SETTLEMENT_TIME + 1);
+        vm.roll(block.number + (SETTLEMENT_TIME + 1) / 2);
         vm.prank(settler);
         oracle.settle(reportId);
     }
@@ -266,6 +270,7 @@ contract OpenSwapBountyRecallTest is Test {
         // No initial report submitted
         // Warp past latency bailout
         vm.warp(block.timestamp + LATENCY_BAILOUT + 1);
+        vm.roll(block.number + (LATENCY_BAILOUT + 1) / 2);
 
         uint256 swapperEthBeforeBailout = swapper.balance;
 
@@ -307,6 +312,7 @@ contract OpenSwapBountyRecallTest is Test {
 
         // Warp past latency bailout time
         vm.warp(block.timestamp + LATENCY_BAILOUT + 1);
+        vm.roll(block.number + (LATENCY_BAILOUT + 1) / 2);
 
         // bailOut does nothing because:
         // - isDistributed = false (oracle not settled)
