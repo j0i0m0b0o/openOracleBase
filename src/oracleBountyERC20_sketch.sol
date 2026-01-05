@@ -331,8 +331,8 @@ contract openOracleBounty is ReentrancyGuard {
         IERC20(token1).safeTransferFrom(msg.sender, address(this), amount1);
         IERC20(token2).safeTransferFrom(msg.sender, address(this), amount2);
 
-        IERC20(token1).safeIncreaseAllowance(address(oracle), amount1);
-        IERC20(token2).safeIncreaseAllowance(address(oracle), amount2);
+        IERC20(token1).forceApprove(address(oracle), amount1);
+        IERC20(token2).forceApprove(address(oracle), amount2);
 
         oracle.submitInitialReport(reportId, amount1, amount2, stateHash, reporter);
 
