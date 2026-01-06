@@ -117,6 +117,15 @@ contract OpenSwapBountyRecallTest is Test {
             maxRounds: MAX_ROUNDS
         });
 
+        openSwap.BountyParams memory bountyParams = openSwap.BountyParams({
+            totalAmtDeposited: BOUNTY_AMOUNT,
+            bountyStartAmt: BOUNTY_AMOUNT / 20,
+            roundLength: 1,
+            bountyToken: address(0),
+            bountyMultiplier: 12247,
+            maxRounds: 20
+        });
+
         uint256 ethToSend = GAS_COMPENSATION + BOUNTY_AMOUNT + SETTLER_REWARD + 1;
 
         swapId = swapContract.swap{value: ethToSend}(
@@ -126,11 +135,11 @@ contract OpenSwapBountyRecallTest is Test {
             address(buyToken),
             MIN_FULFILL_LIQUIDITY,
             block.timestamp + 1 hours,
-            BOUNTY_AMOUNT,
             GAS_COMPENSATION,
             oracleParams,
             slippageParams,
-            fulfillFeeParams
+            fulfillFeeParams,
+            bountyParams
         );
 
         vm.stopPrank();
@@ -314,9 +323,10 @@ contract OpenSwapBountyRecallTest is Test {
         vm.warp(block.timestamp + LATENCY_BAILOUT + 1);
         vm.roll(block.number + (LATENCY_BAILOUT + 1) / 2);
 
-        // bailOut does nothing because:
+        // bailOut reverts because:
         // - isDistributed = false (oracle not settled)
         // - isLatent = false (reportTimestamp != 0 because we submitted initial report)
+        vm.expectRevert(abi.encodeWithSelector(openSwap.InvalidInput.selector, "can't bail out yet"));
         swapContract.bailOut(swapId);
 
         // Swap should NOT be finished

@@ -117,6 +117,15 @@ contract OpenSwapMaxGameTimeTest is Test {
             maxRounds: MAX_ROUNDS_FEE
         });
 
+        openSwap.BountyParams memory bountyParams = openSwap.BountyParams({
+            totalAmtDeposited: BOUNTY_AMOUNT,
+            bountyStartAmt: BOUNTY_AMOUNT / 20,
+            roundLength: 1,
+            bountyToken: address(0),
+            bountyMultiplier: 12247,
+            maxRounds: 20
+        });
+
         uint256 ethToSend = GAS_COMPENSATION + BOUNTY_AMOUNT + SETTLER_REWARD + 1;
 
         swapId = swapContract.swap{value: ethToSend}(
@@ -126,11 +135,11 @@ contract OpenSwapMaxGameTimeTest is Test {
             address(buyToken),
             MIN_FULFILL_LIQUIDITY,
             block.timestamp + 1 hours,
-            BOUNTY_AMOUNT,
             GAS_COMPENSATION,
             oracleParams,
             slippageParams,
-            fulfillFeeParams
+            fulfillFeeParams,
+            bountyParams
         );
 
         vm.stopPrank();
@@ -168,6 +177,15 @@ contract OpenSwapMaxGameTimeTest is Test {
             maxRounds: MAX_ROUNDS_FEE
         });
 
+        openSwap.BountyParams memory bountyParams = openSwap.BountyParams({
+            totalAmtDeposited: BOUNTY_AMOUNT,
+            bountyStartAmt: BOUNTY_AMOUNT / 20,
+            roundLength: 1,
+            bountyToken: address(0),
+            bountyMultiplier: 12247,
+            maxRounds: 20
+        });
+
         uint256 ethToSend = GAS_COMPENSATION + BOUNTY_AMOUNT + SETTLER_REWARD + 1;
 
         swapId = swapContract.swap{value: ethToSend}(
@@ -177,11 +195,11 @@ contract OpenSwapMaxGameTimeTest is Test {
             address(buyToken),
             MIN_FULFILL_LIQUIDITY,
             block.timestamp + 1 hours,
-            BOUNTY_AMOUNT,
             GAS_COMPENSATION,
             oracleParams,
             slippageParams,
-            fulfillFeeParams
+            fulfillFeeParams,
+            bountyParams
         );
 
         vm.stopPrank();
@@ -249,13 +267,14 @@ contract OpenSwapMaxGameTimeTest is Test {
         openSwap.Swap memory sBefore = swapContract.getSwap(swapId);
         assertFalse(sBefore.finished, "Should not be finished");
 
-        // Try bailout - should not work (no bailout condition met)
+        // Try bailout - should revert (no bailout condition met)
         vm.prank(randomUser);
+        vm.expectRevert(abi.encodeWithSelector(openSwap.InvalidInput.selector, "can't bail out yet"));
         swapContract.bailOut(swapId);
 
-        // Should still not be finished (bailout was a no-op)
+        // Should still not be finished
         openSwap.Swap memory sAfter = swapContract.getSwap(swapId);
-        assertFalse(sAfter.finished, "Should still not be finished - bailout should be no-op");
+        assertFalse(sAfter.finished, "Should still not be finished");
     }
 
     function testMaxGameTime_ExactBoundary() public {
@@ -269,8 +288,9 @@ contract OpenSwapMaxGameTimeTest is Test {
         vm.warp(block.timestamp + MAX_GAME_TIME);
         vm.roll(block.number + MAX_GAME_TIME / 2);
 
-        // Bailout should not work - condition is > not >=
+        // Bailout should revert - condition is > not >=
         vm.prank(randomUser);
+        vm.expectRevert(abi.encodeWithSelector(openSwap.InvalidInput.selector, "can't bail out yet"));
         swapContract.bailOut(swapId);
 
         openSwap.Swap memory s = swapContract.getSwap(swapId);
@@ -317,8 +337,9 @@ contract OpenSwapMaxGameTimeTest is Test {
         vm.warp(block.timestamp + LATENCY_BAILOUT + 100);
         vm.roll(block.number + (LATENCY_BAILOUT + 100) / 2);
 
-        // Bailout should not work - isLatent requires reportTimestamp == 0
+        // Bailout should revert - isLatent requires reportTimestamp == 0
         vm.prank(randomUser);
+        vm.expectRevert(abi.encodeWithSelector(openSwap.InvalidInput.selector, "can't bail out yet"));
         swapContract.bailOut(swapId);
 
         openSwap.Swap memory s = swapContract.getSwap(swapId);
@@ -457,6 +478,15 @@ contract OpenSwapMaxGameTimeTest is Test {
             maxRounds: MAX_ROUNDS_FEE
         });
 
+        openSwap.BountyParams memory bountyParams = openSwap.BountyParams({
+            totalAmtDeposited: BOUNTY_AMOUNT,
+            bountyStartAmt: BOUNTY_AMOUNT / 20,
+            roundLength: 1,
+            bountyToken: address(0),
+            bountyMultiplier: 12247,
+            maxRounds: 20
+        });
+
         uint256 ethToSend = GAS_COMPENSATION + BOUNTY_AMOUNT + SETTLER_REWARD + 1;
 
         vm.expectRevert(abi.encodeWithSelector(openSwap.InvalidInput.selector, "oracleParams"));
@@ -467,11 +497,11 @@ contract OpenSwapMaxGameTimeTest is Test {
             address(buyToken),
             MIN_FULFILL_LIQUIDITY,
             block.timestamp + 1 hours,
-            BOUNTY_AMOUNT,
             GAS_COMPENSATION,
             badParams,
             slippageParams,
-            fulfillFeeParams
+            fulfillFeeParams,
+            bountyParams
         );
 
         vm.stopPrank();

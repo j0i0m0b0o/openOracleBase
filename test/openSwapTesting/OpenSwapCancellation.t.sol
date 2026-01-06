@@ -104,6 +104,15 @@ contract OpenSwapCancellationTest is Test {
             maxRounds: MAX_ROUNDS
         });
 
+        openSwap.BountyParams memory bountyParams = openSwap.BountyParams({
+            totalAmtDeposited: BOUNTY_AMOUNT,
+            bountyStartAmt: BOUNTY_AMOUNT / 20,
+            roundLength: 1,
+            bountyToken: address(0),
+            bountyMultiplier: 12247,
+            maxRounds: 20
+        });
+
         uint256 ethToSend = GAS_COMPENSATION + BOUNTY_AMOUNT + SETTLER_REWARD + 1;
 
         swapId = swapContract.swap{value: ethToSend}(
@@ -113,11 +122,11 @@ contract OpenSwapCancellationTest is Test {
             address(buyToken),
             MIN_FULFILL_LIQUIDITY,
             block.timestamp + 1 hours,
-            BOUNTY_AMOUNT,
             GAS_COMPENSATION,
             oracleParams,
             slippageParams,
-            fulfillFeeParams
+            fulfillFeeParams,
+            bountyParams
         );
 
         vm.stopPrank();
@@ -271,7 +280,8 @@ contract OpenSwapCancellationTest is Test {
 
         // Don't warp - latency not reached and no initial report
         // But also oracle not distributed, so neither condition met
-        // Function should be a no-op (no revert, but no state change)
+        // Function should revert with "can't bail out yet"
+        vm.expectRevert(abi.encodeWithSelector(openSwap.InvalidInput.selector, "can't bail out yet"));
         swapContract.bailOut(swapId);
 
         // Verify swap is NOT finished
@@ -378,9 +388,10 @@ contract OpenSwapCancellationTest is Test {
         openSwap.Swap memory s = swapContract.getSwap(swapId);
         uint256 matchTime = s.start;
 
-        // Warp to exactly latency bailout time - should be no-op (need to be > not >=)
+        // Warp to exactly latency bailout time - should revert (need to be > not >=)
         vm.warp(matchTime + LATENCY_BAILOUT);
         vm.roll(block.number + LATENCY_BAILOUT / 2);
+        vm.expectRevert(abi.encodeWithSelector(openSwap.InvalidInput.selector, "can't bail out yet"));
         swapContract.bailOut(swapId);
 
         openSwap.Swap memory sMid = swapContract.getSwap(swapId);

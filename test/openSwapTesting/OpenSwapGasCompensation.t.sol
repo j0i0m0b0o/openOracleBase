@@ -123,6 +123,17 @@ contract OpenSwapGasCompensationTest is Test {
         });
     }
 
+    function _getBountyParams() internal pure returns (openSwap.BountyParams memory) {
+        return openSwap.BountyParams({
+            totalAmtDeposited: BOUNTY_AMOUNT,
+            bountyStartAmt: BOUNTY_AMOUNT / 20,
+            roundLength: 1,
+            bountyToken: address(0),
+            bountyMultiplier: 12247,
+            maxRounds: 20
+        });
+    }
+
     function _createSwapWithGasComp(uint256 gasCompensation) internal returns (uint256 swapId) {
         vm.startPrank(swapper);
 
@@ -135,11 +146,11 @@ contract OpenSwapGasCompensationTest is Test {
             address(buyToken),
             MIN_FULFILL_LIQUIDITY,
             block.timestamp + 1 hours,
-            BOUNTY_AMOUNT,
             gasCompensation,
             _getOracleParams(),
             _getSlippageParams(),
-            _getFulfillFeeParams()
+            _getFulfillFeeParams(),
+            _getBountyParams()
         );
 
         vm.stopPrank();
@@ -423,11 +434,11 @@ contract OpenSwapGasCompensationTest is Test {
             address(buyToken),
             MIN_FULFILL_LIQUIDITY,
             block.timestamp + 1 hours,
-            BOUNTY_AMOUNT,
             gasComp,
             _getOracleParams(),
             _getSlippageParams(),
-            _getFulfillFeeParams()
+            _getFulfillFeeParams(),
+            _getBountyParams()
         );
 
         vm.stopPrank();
@@ -539,11 +550,11 @@ contract OpenSwapGasCompensationTest is Test {
             address(buyToken),
             MIN_FULFILL_LIQUIDITY,
             block.timestamp + 1 hours,
-            BOUNTY_AMOUNT,
             gasComp,
             _getOracleParams(),
             _getSlippageParams(),
-            _getFulfillFeeParams()
+            _getFulfillFeeParams(),
+            _getBountyParams()
         );
         vm.stopPrank();
 
@@ -581,11 +592,11 @@ contract OpenSwapGasCompensationTest is Test {
             address(buyToken),
             MIN_FULFILL_LIQUIDITY,
             block.timestamp + 1 hours,
-            BOUNTY_AMOUNT,
             gasComp,
             _getOracleParams(),
             strictSlippage,
-            _getFulfillFeeParams()
+            _getFulfillFeeParams(),
+            _getBountyParams()
         );
         vm.stopPrank();
 

@@ -123,6 +123,17 @@ contract OpenSwapETHTest is Test {
         });
     }
 
+    function _getBountyParams() internal pure returns (openSwap.BountyParams memory) {
+        return openSwap.BountyParams({
+            totalAmtDeposited: BOUNTY_AMOUNT,
+            bountyStartAmt: BOUNTY_AMOUNT / 20,
+            roundLength: 1,
+            bountyToken: address(0),
+            bountyMultiplier: 12247,
+            maxRounds: 20
+        });
+    }
+
     // ============ ETH → ERC20 Tests ============
 
     function testETHToToken_CreateSwap() public {
@@ -138,11 +149,11 @@ contract OpenSwapETHTest is Test {
             address(token),
             MIN_FULFILL_LIQUIDITY,
             block.timestamp + 1 hours,
-            BOUNTY_AMOUNT,
             GAS_COMPENSATION,
             _getOracleParams(),
             _getSlippageParams(),
-            _getFulfillFeeParams()
+            _getFulfillFeeParams(),
+            _getBountyParams()
         );
 
         vm.stopPrank();
@@ -175,11 +186,11 @@ contract OpenSwapETHTest is Test {
             address(token),
             MIN_FULFILL_LIQUIDITY,
             block.timestamp + 1 hours,
-            BOUNTY_AMOUNT,
             GAS_COMPENSATION,
             _getOracleParams(),
             _getSlippageParams(),
-            _getFulfillFeeParams()
+            _getFulfillFeeParams(),
+            _getBountyParams()
         );
         vm.stopPrank();
 
@@ -233,11 +244,11 @@ contract OpenSwapETHTest is Test {
             address(token),
             MIN_FULFILL_LIQUIDITY,
             block.timestamp + 1 hours,
-            BOUNTY_AMOUNT,
             GAS_COMPENSATION,
             _getOracleParams(),
             _getSlippageParams(),
-            _getFulfillFeeParams()
+            _getFulfillFeeParams(),
+            _getBountyParams()
         );
 
         // Cancel
@@ -264,11 +275,11 @@ contract OpenSwapETHTest is Test {
             address(0), // buyToken = ETH
             1 ether, // minFulfillLiquidity in ETH
             block.timestamp + 1 hours,
-            BOUNTY_AMOUNT,
             GAS_COMPENSATION,
             _getOracleParams(),
             _getSlippageParams(),
-            _getFulfillFeeParams()
+            _getFulfillFeeParams(),
+            _getBountyParams()
         );
 
         vm.stopPrank();
@@ -296,11 +307,11 @@ contract OpenSwapETHTest is Test {
             address(0),
             minFulfillETH,
             block.timestamp + 1 hours,
-            BOUNTY_AMOUNT,
             GAS_COMPENSATION,
             _getOracleParams(),
             _getSlippageParams(),
-            _getFulfillFeeParams()
+            _getFulfillFeeParams(),
+            _getBountyParams()
         );
         vm.stopPrank();
 
@@ -334,11 +345,11 @@ contract OpenSwapETHTest is Test {
             address(0),
             minFulfillETH,
             block.timestamp + 1 hours,
-            BOUNTY_AMOUNT,
             GAS_COMPENSATION,
             _getOracleParams(),
             _getSlippageParams(),
-            _getFulfillFeeParams()
+            _getFulfillFeeParams(),
+            _getBountyParams()
         );
         vm.stopPrank();
 
@@ -404,11 +415,11 @@ contract OpenSwapETHTest is Test {
             address(token),
             MIN_FULFILL_LIQUIDITY,
             block.timestamp + 1 hours,
-            BOUNTY_AMOUNT,
             GAS_COMPENSATION,
             _getOracleParams(),
             _getSlippageParams(),
-            _getFulfillFeeParams()
+            _getFulfillFeeParams(),
+            _getBountyParams()
         );
 
         vm.stopPrank();
@@ -426,11 +437,11 @@ contract OpenSwapETHTest is Test {
             address(0),
             minFulfillETH,
             block.timestamp + 1 hours,
-            BOUNTY_AMOUNT,
             GAS_COMPENSATION,
             _getOracleParams(),
             _getSlippageParams(),
-            _getFulfillFeeParams()
+            _getFulfillFeeParams(),
+            _getBountyParams()
         );
         vm.stopPrank();
 
@@ -462,11 +473,11 @@ contract OpenSwapETHTest is Test {
             address(otherToken),
             100e18,
             block.timestamp + 1 hours,
-            BOUNTY_AMOUNT,
             GAS_COMPENSATION,
             _getOracleParams(),
             _getSlippageParams(),
-            _getFulfillFeeParams()
+            _getFulfillFeeParams(),
+            _getBountyParams()
         );
         vm.stopPrank();
 
@@ -495,11 +506,11 @@ contract OpenSwapETHTest is Test {
             address(token),
             MIN_FULFILL_LIQUIDITY,
             block.timestamp + 1 hours,
-            BOUNTY_AMOUNT,
             GAS_COMPENSATION,
             _getOracleParams(),
             _getSlippageParams(),
-            _getFulfillFeeParams()
+            _getFulfillFeeParams(),
+            _getBountyParams()
         );
         vm.stopPrank();
 
@@ -540,11 +551,11 @@ contract OpenSwapETHTest is Test {
             address(0),
             minFulfillETH,
             block.timestamp + 1 hours,
-            BOUNTY_AMOUNT,
             GAS_COMPENSATION,
             _getOracleParams(),
             _getSlippageParams(),
-            _getFulfillFeeParams()
+            _getFulfillFeeParams(),
+            _getBountyParams()
         );
         vm.stopPrank();
 

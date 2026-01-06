@@ -122,6 +122,15 @@ contract OpenSwapProtocolFeesTest is Test {
             maxRounds: MAX_ROUNDS
         });
 
+        openSwap.BountyParams memory bountyParams = openSwap.BountyParams({
+            totalAmtDeposited: BOUNTY_AMOUNT,
+            bountyStartAmt: BOUNTY_AMOUNT / 20,
+            roundLength: 1,
+            bountyToken: address(0),
+            bountyMultiplier: 12247,
+            maxRounds: 20
+        });
+
         uint256 ethToSend = GAS_COMPENSATION + BOUNTY_AMOUNT + SETTLER_REWARD + 1;
 
         swapId = swapContract.swap{value: ethToSend}(
@@ -131,11 +140,11 @@ contract OpenSwapProtocolFeesTest is Test {
             address(buyToken),
             MIN_FULFILL_LIQUIDITY,
             block.timestamp + 1 hours,
-            BOUNTY_AMOUNT,
             GAS_COMPENSATION,
             oracleParams,
             slippageParams,
-            fulfillFeeParams
+            fulfillFeeParams,
+            bountyParams
         );
 
         vm.stopPrank();
