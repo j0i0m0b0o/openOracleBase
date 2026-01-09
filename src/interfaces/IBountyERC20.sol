@@ -9,6 +9,7 @@ interface IBountyERC20 {
         uint256 start;
         uint256 forwardStartTime;
         uint256 roundLength;
+        uint256 recallUnlockAt;
         address payable creator;
         address editor;
         address bountyToken;
@@ -17,7 +18,7 @@ interface IBountyERC20 {
         bool claimed;
         bool recalled;
         bool timeType;
-	    bool recallOnClaim;
+        bool recallOnClaim;
     }
 
     struct oracleParams {
@@ -84,7 +85,8 @@ interface IBountyERC20 {
         address bountyToken,
         uint256 maxAmount,
         uint256 roundLength,
-	    bool recallOnClaim
+        bool recallOnClaim,
+        uint48 recallDelay
     ) external payable;
 
     function createOracleBounty(
@@ -98,7 +100,8 @@ interface IBountyERC20 {
         address bountyToken,
         uint256 maxAmount,
         uint256 roundLength,
-	    bool recallOnClaim
+        bool recallOnClaim,
+        uint48 recallDelay
     ) external payable;
 
     function createOracleBountyFwd(
@@ -113,7 +116,8 @@ interface IBountyERC20 {
         address bountyToken,
         uint256 maxAmount,
         uint256 roundLength,
-        bool recallOnClaim
+        bool recallOnClaim,
+        uint48 recallDelay
     ) external payable;
 
     function recallBounty(uint256 reportId) external;
