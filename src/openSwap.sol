@@ -101,15 +101,15 @@ contract openSwap is ReentrancyGuard {
     }
 
     struct BountyParams {
-        uint256 totalAmtDeposited;
-        uint256 bountyStartAmt;
-        uint256 roundLength;
-        address bountyToken;
-        uint16 bountyMultiplier;
-        uint16 maxRounds;
+        uint256 totalAmtDeposited; // max amount of bountyToken paid in the initial report bounty 
+        uint256 bountyStartAmt; // starting amount of bountyToken in the initial report bounty
+        uint256 roundLength; // length of time, in seconds, for each escalation round
+        address bountyToken; // token bounty is paid in. address(0) is for ETH
+        uint16 bountyMultiplier; // amount bounty escalate per round from bountyStartAmt. 14000 = 1.4x per round
+        uint16 maxRounds; // maximum rounds of escalation
     }
 
-    event SwapCreated(uint256 indexed swapId, address indexed swapper, uint256 sellAmt, address sellToken, uint256 minOut, address buyToken, uint256 minFulfillLiquidity, uint256 expiration, uint256 priceTolerated, uint256 toleranceRange, FulfillFeeParams fulfillFeeParams, uint256 blockTimestamp, OracleParams oracleParams);
+    event SwapCreated(uint256 indexed swapId, address indexed swapper, uint256 sellAmt, address sellToken, uint256 minOut, address buyToken, uint256 minFulfillLiquidity, uint256 expiration, uint256 priceTolerated, uint256 toleranceRange, FulfillFeeParams fulfillFeeParams, uint256 blockTimestamp, OracleParams oracleParams, BountyParams bountyParams, uint256 gasCompensation);
     event SwapCancelled(uint256 swapId);
     event SingleFee(uint256 swapId, uint256 fulfillmentFee);
     event SwapRefunded(uint256 swapId, address indexed swapper, address indexed matcher);
@@ -153,6 +153,8 @@ contract openSwap is ReentrancyGuard {
 
         if (sellAmt == 0 || minOut == 0 || minFulfillLiquidity == 0) revert InvalidInput("zero amounts");
         if (fulfillFeeParams.maxFee >= 1e7) revert InvalidInput("fulfillmentFee");
+
+        if (slippageParams.priceTolerated == 0 || slippageParams.toleranceRange == 0 || slippageParams.toleranceRange > 1e7) revert InvalidInput("slippage");
 
         if (oracleParams.settlerReward < 100
             || oracleParams.swapFee == 0 
@@ -209,7 +211,7 @@ contract openSwap is ReentrancyGuard {
             IERC20(bountyParams.bountyToken).safeTransferFrom(msg.sender, address(this), bountyParams.totalAmtDeposited);
         }
 
-        emit SwapCreated(swapId, s.swapper, sellAmt, sellToken, minOut, buyToken, minFulfillLiquidity, s.expiration, slippageParams.priceTolerated, slippageParams.toleranceRange, s.fulfillFeeParams, block.timestamp, s.oracleParams);
+        emit SwapCreated(swapId, s.swapper, sellAmt, sellToken, minOut, buyToken, minFulfillLiquidity, s.expiration, slippageParams.priceTolerated, slippageParams.toleranceRange, s.fulfillFeeParams, block.timestamp, s.oracleParams, s.bountyParams, gasCompensation);
         if (fulfillFeeParams.maxFee == fulfillFeeParams.startingFee && fulfillFeeParams.maxRounds == 1) {
             emit SingleFee(swapId, fulfillFeeParams.maxFee);
         }
@@ -279,7 +281,8 @@ contract openSwap is ReentrancyGuard {
             s.bountyParams.bountyToken, // bountyToken (address(0) = ETH in bounty contract)
             s.bountyParams.totalAmtDeposited, // max bounty paid
             s.bountyParams.roundLength, // round length of bounty escalation
-            false // remaining bounty returned to creator on initial report (handled in openSwap logic)
+            false, // remaining bounty returned to creator on initial report (handled in openSwap logic)
+            s.oracleParams.latencyBailout
         );
 
         if (s.bountyParams.bountyToken != address(0)){
@@ -568,22 +571,18 @@ contract openSwap is ReentrancyGuard {
         
         return currentFee;
     }
-    
-    // can maybe make this log-symmetric but just keep it simple for now
-    // balances incentives in the swapping game so the swapper puts the current price in priceTolerated if they want a matcher to come.
+
     function toleranceCheck(uint256 price, uint256 priceTolerated, uint24 toleranceRange)
         internal
         pure
         returns (bool)
     {
-        if (priceTolerated == 0 || toleranceRange == 0) return true;
-        uint256 maxDiff = (priceTolerated * toleranceRange) / 1e7;
+        uint256 tr = uint256(toleranceRange);
+        uint256 upper = (priceTolerated * (1e7 + tr)) / 1e7;
+        uint256 lower = (priceTolerated * 1e7) / (1e7 + tr);
 
-        if (priceTolerated > price) {
-            return (priceTolerated - price) <= maxDiff;
-        } else {
-            return (price - priceTolerated) <= maxDiff;
-        }
+        return price >= lower && price <= upper;
+
     }
 
     function impliedBlocksPerSecond(bool timeType, uint48 _time, uint48 _timeOppo, uint48 blocksPerSecond) internal view returns (bool) {
@@ -604,7 +603,7 @@ contract openSwap is ReentrancyGuard {
 
         if (
             1000 * _timeChangeBlock > expectedBlocks + 2 * _blocksPerSecond
-                || 1000 * _timeChangeBlock < expectedBlocks - 2 * _blocksPerSecond
+                || 1000 * _timeChangeBlock + 2 * _blocksPerSecond < expectedBlocks
         ) {
             return false;
         } else {
