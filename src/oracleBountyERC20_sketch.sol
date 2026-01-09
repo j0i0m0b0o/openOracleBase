@@ -70,6 +70,7 @@ contract openOracleBounty is ReentrancyGuard {
         uint256 start;
         uint256 forwardStartTime;
         uint256 roundLength;
+        uint256 recallUnlockAt;
         address payable creator;
         address editor;
         address bountyToken;
@@ -108,23 +109,23 @@ contract openOracleBounty is ReentrancyGuard {
 
     // overload to let user choose a start timestamp or block number for bounty
     // see _createOracleBounty for NatSpec
-    function createOracleBounty(uint256 reportId, uint256 bountyStartAmt, address creator, address editor, uint16 bountyMultiplier, uint16 maxRounds, bool timeType, uint256 start, address bountyToken, uint256 maxAmount, uint256 roundLength, bool recallOnClaim) external payable nonReentrant {
-        _createOracleBounty(reportId, bountyStartAmt, creator, editor, bountyMultiplier, maxRounds, timeType, start, 0, bountyToken, maxAmount, roundLength, recallOnClaim);
+    function createOracleBounty(uint256 reportId, uint256 bountyStartAmt, address creator, address editor, uint16 bountyMultiplier, uint16 maxRounds, bool timeType, uint256 start, address bountyToken, uint256 maxAmount, uint256 roundLength, bool recallOnClaim, uint48 recallDelay) external payable nonReentrant {
+        _createOracleBounty(reportId, bountyStartAmt, creator, editor, bountyMultiplier, maxRounds, timeType, start, 0, bountyToken, maxAmount, roundLength, recallOnClaim, recallDelay);
     }
 
     // overload to automatically set start to current block number or time
     // see _createOracleBounty for NatSpec
-    function createOracleBounty(uint256 reportId, uint256 bountyStartAmt, address creator, address editor, uint16 bountyMultiplier, uint16 maxRounds, bool timeType, address bountyToken, uint256 maxAmount, uint256 roundLength, bool recallOnClaim) external payable nonReentrant {
+    function createOracleBounty(uint256 reportId, uint256 bountyStartAmt, address creator, address editor, uint16 bountyMultiplier, uint16 maxRounds, bool timeType, address bountyToken, uint256 maxAmount, uint256 roundLength, bool recallOnClaim, uint48 recallDelay) external payable nonReentrant {
         uint256 start = timeType ? block.timestamp : block.number;
-        _createOracleBounty(reportId, bountyStartAmt, creator, editor, bountyMultiplier, maxRounds, timeType, start, 0, bountyToken, maxAmount, roundLength, recallOnClaim);
+        _createOracleBounty(reportId, bountyStartAmt, creator, editor, bountyMultiplier, maxRounds, timeType, start, 0, bountyToken, maxAmount, roundLength, recallOnClaim, recallDelay);
     }
 
     // overload to automatically set start to current block number or time plus forward start time
     // see _createOracleBounty for NatSpec
-    function createOracleBountyFwd(uint256 reportId, uint256 bountyStartAmt, address creator, address editor, uint16 bountyMultiplier, uint16 maxRounds, bool timeType, uint256 forwardStartTime, address bountyToken, uint256 maxAmount, uint256 roundLength, bool recallOnClaim) external payable nonReentrant {
+    function createOracleBountyFwd(uint256 reportId, uint256 bountyStartAmt, address creator, address editor, uint16 bountyMultiplier, uint16 maxRounds, bool timeType, uint256 forwardStartTime, address bountyToken, uint256 maxAmount, uint256 roundLength, bool recallOnClaim, uint48 recallDelay) external payable nonReentrant {
         uint256 start = timeType ? block.timestamp : block.number;
         start += forwardStartTime;
-        _createOracleBounty(reportId, bountyStartAmt, creator, editor, bountyMultiplier, maxRounds, timeType, start, forwardStartTime, bountyToken, maxAmount, roundLength, recallOnClaim);
+        _createOracleBounty(reportId, bountyStartAmt, creator, editor, bountyMultiplier, maxRounds, timeType, start, forwardStartTime, bountyToken, maxAmount, roundLength, recallOnClaim, recallDelay);
     }
 
     /**
@@ -141,8 +142,9 @@ contract openOracleBounty is ReentrancyGuard {
      * @param maxAmount Maximum bounty paid
      * @param roundLength Time length of per-round bounty escalation
      * @param recallOnClaim If true, bounty is recalled to creator on claim (successful initial report)
+     * @param recallDelay Delay period where a recall cannot be submitted so long as there has been no initial report
      */
-    function _createOracleBounty(uint256 reportId, uint256 bountyStartAmt, address creator, address editor, uint16 bountyMultiplier, uint16 maxRounds, bool timeType, uint256 start, uint256 forwardStartTime, address bountyToken, uint256 maxAmount, uint256 roundLength, bool recallOnClaim) internal {
+    function _createOracleBounty(uint256 reportId, uint256 bountyStartAmt, address creator, address editor, uint16 bountyMultiplier, uint16 maxRounds, bool timeType, uint256 start, uint256 forwardStartTime, address bountyToken, uint256 maxAmount, uint256 roundLength, bool recallOnClaim, uint48 recallDelay) internal {
 
         if (maxRounds == 0 || bountyStartAmt == 0 || bountyMultiplier == 0 || maxAmount == 0 || roundLength == 0) revert InvalidInput("amounts cannot = 0");
         if (maxRounds > 100) revert InvalidInput("too many rounds");
@@ -168,6 +170,7 @@ contract openOracleBounty is ReentrancyGuard {
         Bounty[reportId].forwardStartTime = forwardStartTime;
         Bounty[reportId].roundLength = roundLength;
         Bounty[reportId].recallOnClaim = recallOnClaim;
+        Bounty[reportId].recallUnlockAt = timeType ? recallDelay + block.timestamp : recallDelay + block.number;
 
         if (bountyToken != address(0)) {
             IERC20(bountyToken).safeTransferFrom(msg.sender, address(this), maxAmount);
@@ -186,6 +189,9 @@ contract openOracleBounty is ReentrancyGuard {
         if (bounty.maxRounds == 0) revert InvalidInput("bounty doesnt exist");        
         if (bounty.recalled) revert InvalidInput("bounty already recalled");
         if (msg.sender != bounty.creator && msg.sender != bounty.editor) revert InvalidInput("wrong sender");
+
+        uint256 time = bounty.timeType ? block.timestamp : block.number;
+        if (time <= bounty.recallUnlockAt && !bounty.claimed) revert InvalidInput("recall delay");
 
         uint256 amount;
 
@@ -359,7 +365,6 @@ contract openOracleBounty is ReentrancyGuard {
 
         emit BountyInitialReportSubmitted(reportId, bountyAmt, bounty.bountyToken);
     }
-
 
     /**
      * @notice Withdraws temp holdings for a specific token
