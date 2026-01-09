@@ -107,8 +107,8 @@ contract OpenSwapETHTest is Test {
 
     function _getSlippageParams() internal pure returns (openSwap.SlippageParams memory) {
         return openSwap.SlippageParams({
-            priceTolerated: 0,
-            toleranceRange: 0
+            priceTolerated: 5e14,
+            toleranceRange: 1e7 - 1
         });
     }
 
@@ -337,6 +337,11 @@ contract OpenSwapETHTest is Test {
         uint256 sellAmtTokens = 10e18;
 
         // Create swap: Token → ETH
+        // This test uses price = 1e18 * 1e18 / 5e16 = 2e19
+        openSwap.SlippageParams memory slippageParams = openSwap.SlippageParams({
+            priceTolerated: 2e19,
+            toleranceRange: 1e7 - 1
+        });
         vm.startPrank(swapper);
         uint256 swapId = swapContract.swap{value: ethToSend}(
             sellAmtTokens,
@@ -347,7 +352,7 @@ contract OpenSwapETHTest is Test {
             block.timestamp + 1 hours,
             GAS_COMPENSATION,
             _getOracleParams(),
-            _getSlippageParams(),
+            slippageParams,
             _getFulfillFeeParams(),
             _getBountyParams()
         );

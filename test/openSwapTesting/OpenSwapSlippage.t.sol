@@ -166,49 +166,29 @@ contract OpenSwapSlippageTest is Test {
         oracle.settle(reportId);
     }
 
-    // ============ Slippage Bypass Tests ============
+    // ============ Slippage Validation Tests ============
 
-    function testSlippage_BypassWhenPriceToleratedZero() public {
-        // priceTolerated = 0 bypasses slippage check
-        uint256 swapId = _createSwapWithSlippage(0, 100000); // toleranceRange set but priceTolerated = 0
-        _matchSwap(swapId);
-
-        // Report price that keeps fulfillAmt <= minFulfillLiquidity
-        // fulfillAmt = SELL_AMT * price = 10e18 * 2000e18 / 1e18 = 20000e18 < 25000e18
-        _submitReportAndSettle(swapId, INITIAL_LIQUIDITY, 2000e18);
-
-        openSwap.Swap memory s = swapContract.getSwap(swapId);
-        assertTrue(s.finished, "Swap should be finished");
-
-        // Swapper should have received buyToken (not refunded)
-        assertGt(buyToken.balanceOf(swapper), 0, "Swapper should have received buyToken");
+    function testSlippage_RevertWhenPriceToleratedZero() public {
+        // priceTolerated = 0 now reverts
+        vm.expectRevert();
+        _createSwapWithSlippage(0, 100000);
     }
 
-    function testSlippage_BypassWhenToleranceRangeZero() public {
-        // toleranceRange = 0 bypasses slippage check
-        uint256 swapId = _createSwapWithSlippage(2000e18, 0); // priceTolerated set but toleranceRange = 0
-        _matchSwap(swapId);
-
-        // Report different price but still within liquidity bounds
-        // fulfillAmt = 10e18 * 2400e18 / 1e18 = 24000e18 < 25000e18
-        _submitReportAndSettle(swapId, INITIAL_LIQUIDITY, 2400e18);
-
-        openSwap.Swap memory s = swapContract.getSwap(swapId);
-        assertTrue(s.finished, "Swap should be finished");
-
-        assertGt(buyToken.balanceOf(swapper), 0, "Swapper should have received buyToken");
+    function testSlippage_RevertWhenToleranceRangeZero() public {
+        // toleranceRange = 0 now reverts
+        vm.expectRevert();
+        _createSwapWithSlippage(5e14, 0);
     }
 
-    function testSlippage_BypassWhenBothZero() public {
-        uint256 swapId = _createSwapWithSlippage(0, 0);
-        _matchSwap(swapId);
+    function testSlippage_RevertWhenBothZero() public {
+        vm.expectRevert();
+        _createSwapWithSlippage(0, 0);
+    }
 
-        // Price within liquidity bounds
-        _submitReportAndSettle(swapId, INITIAL_LIQUIDITY, 1234e18);
-
-        openSwap.Swap memory s = swapContract.getSwap(swapId);
-        assertTrue(s.finished, "Swap should be finished");
-        assertGt(buyToken.balanceOf(swapper), 0, "Swapper should have received buyToken");
+    function testSlippage_RevertWhenToleranceRangeTooHigh() public {
+        // toleranceRange > 1e7 reverts
+        vm.expectRevert();
+        _createSwapWithSlippage(5e14, uint24(1e7 + 1));
     }
 
     // ============ Slippage Pass Tests ============

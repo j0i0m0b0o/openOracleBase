@@ -115,8 +115,8 @@ contract OpenSwapERC20BountyTest is Test {
         });
 
         openSwap.SlippageParams memory slippageParams = openSwap.SlippageParams({
-            priceTolerated: 0,
-            toleranceRange: 0
+            priceTolerated: 5e14,
+            toleranceRange: 1e7 - 1
         });
 
         openSwap.FulfillFeeParams memory fulfillFeeParams = openSwap.FulfillFeeParams({
@@ -229,8 +229,8 @@ contract OpenSwapERC20BountyTest is Test {
         });
 
         openSwap.SlippageParams memory slippageParams = openSwap.SlippageParams({
-            priceTolerated: 0,
-            toleranceRange: 0
+            priceTolerated: 5e14,
+            toleranceRange: 1e7 - 1
         });
 
         openSwap.FulfillFeeParams memory fulfillFeeParams = openSwap.FulfillFeeParams({
@@ -315,7 +315,7 @@ contract OpenSwapERC20BountyTest is Test {
         uint256 reportId = s.reportId;
 
         // Check bounty was created with ERC20 token
-        (,,,,,, address payable creator, address editor, address storedBountyToken,,,,,,) = bountyContract.Bounty(reportId);
+        (,,,,,,, address payable creator, address editor, address storedBountyToken,,,,,,) = bountyContract.Bounty(reportId);
         assertEq(storedBountyToken, address(bountyToken), "Bounty token stored in bounty contract");
         assertEq(creator, swapper, "Creator is swapper");
         assertEq(editor, address(swapContract), "Editor is swap contract");
@@ -381,7 +381,7 @@ contract OpenSwapERC20BountyTest is Test {
 
         _submitReportAndSettle(swapId, INITIAL_LIQUIDITY, 2000e18);
 
-        (,,,,,,,,,,,, bool recalled,,) = bountyContract.Bounty(reportId);
+        (,,,,,,,,,,,,, bool recalled,,) = bountyContract.Bounty(reportId);
         assertTrue(recalled, "Bounty should be marked as recalled");
     }
 
@@ -462,8 +462,8 @@ contract OpenSwapERC20BountyTest is Test {
         });
 
         openSwap.SlippageParams memory slippageParams = openSwap.SlippageParams({
-            priceTolerated: 0,
-            toleranceRange: 0
+            priceTolerated: 5e14,
+            toleranceRange: 1e7 - 1
         });
 
         openSwap.FulfillFeeParams memory fulfillFeeParams = openSwap.FulfillFeeParams({
@@ -543,8 +543,8 @@ contract OpenSwapERC20BountyTest is Test {
         });
 
         openSwap.SlippageParams memory slippageParams = openSwap.SlippageParams({
-            priceTolerated: 0,
-            toleranceRange: 0
+            priceTolerated: 5e14,
+            toleranceRange: 1e7 - 1
         });
 
         openSwap.FulfillFeeParams memory fulfillFeeParams = openSwap.FulfillFeeParams({
@@ -646,8 +646,8 @@ contract OpenSwapERC20BountyTest is Test {
         });
 
         openSwap.SlippageParams memory slippageParams = openSwap.SlippageParams({
-            priceTolerated: 0,
-            toleranceRange: 0
+            priceTolerated: 5e14,
+            toleranceRange: 1e7 - 1
         });
 
         openSwap.FulfillFeeParams memory fulfillFeeParams = openSwap.FulfillFeeParams({
@@ -725,8 +725,8 @@ contract OpenSwapERC20BountyTest is Test {
         });
 
         openSwap.SlippageParams memory slippageParams = openSwap.SlippageParams({
-            priceTolerated: 0,
-            toleranceRange: 0
+            priceTolerated: 5e14,
+            toleranceRange: 1e7 - 1
         });
 
         openSwap.FulfillFeeParams memory fulfillFeeParams = openSwap.FulfillFeeParams({
@@ -1077,8 +1077,8 @@ contract OpenSwapERC20BountyTest is Test {
         });
 
         openSwap.SlippageParams memory slippageParams = openSwap.SlippageParams({
-            priceTolerated: 0,
-            toleranceRange: 0
+            priceTolerated: 5e14,
+            toleranceRange: 1e7 - 1
         });
 
         openSwap.FulfillFeeParams memory fulfillFeeParams = openSwap.FulfillFeeParams({

@@ -91,8 +91,8 @@ contract OpenSwapCancellationTest is Test {
         });
 
         openSwap.SlippageParams memory slippageParams = openSwap.SlippageParams({
-            priceTolerated: 0,
-            toleranceRange: 0
+            priceTolerated: 5e14,
+            toleranceRange: 1e7 - 1
         });
 
         openSwap.FulfillFeeParams memory fulfillFeeParams = openSwap.FulfillFeeParams({

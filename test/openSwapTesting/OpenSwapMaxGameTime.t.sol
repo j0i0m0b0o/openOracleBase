@@ -104,8 +104,8 @@ contract OpenSwapMaxGameTimeTest is Test {
         });
 
         openSwap.SlippageParams memory slippageParams = openSwap.SlippageParams({
-            priceTolerated: 0,
-            toleranceRange: 0
+            priceTolerated: 5e14,
+            toleranceRange: 1e7 - 1
         });
 
         openSwap.FulfillFeeParams memory fulfillFeeParams = openSwap.FulfillFeeParams({
@@ -164,8 +164,8 @@ contract OpenSwapMaxGameTimeTest is Test {
         });
 
         openSwap.SlippageParams memory slippageParams = openSwap.SlippageParams({
-            priceTolerated: 0,
-            toleranceRange: 0
+            priceTolerated: 5e14,
+            toleranceRange: 1e7 - 1
         });
 
         openSwap.FulfillFeeParams memory fulfillFeeParams = openSwap.FulfillFeeParams({
@@ -403,12 +403,12 @@ contract OpenSwapMaxGameTimeTest is Test {
         vm.warp(block.timestamp + MAX_GAME_TIME + 1);
         vm.roll(block.number + (MAX_GAME_TIME + 1) / 2);
 
-        (,,,,,,,,,,,, bool recalledBefore,,) = bountyContract.Bounty(reportId);
+        (,,,,,,,,,,,,, bool recalledBefore,,) = bountyContract.Bounty(reportId);
         assertFalse(recalledBefore, "Bounty should not be recalled before bailout");
 
         swapContract.bailOut(swapId);
 
-        (,,,,,,,,,,,, bool recalledAfter,,) = bountyContract.Bounty(reportId);
+        (,,,,,,,,,,,,, bool recalledAfter,,) = bountyContract.Bounty(reportId);
         assertTrue(recalledAfter, "Bounty should be recalled after bailout");
     }
 
@@ -465,8 +465,8 @@ contract OpenSwapMaxGameTimeTest is Test {
         });
 
         openSwap.SlippageParams memory slippageParams = openSwap.SlippageParams({
-            priceTolerated: 0,
-            toleranceRange: 0
+            priceTolerated: 5e14,
+            toleranceRange: 1e7 - 1
         });
 
         openSwap.FulfillFeeParams memory fulfillFeeParams = openSwap.FulfillFeeParams({

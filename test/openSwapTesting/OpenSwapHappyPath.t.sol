@@ -115,8 +115,8 @@ contract OpenSwapHappyPathTest is Test {
         });
 
         openSwap.SlippageParams memory slippageParams = openSwap.SlippageParams({
-            priceTolerated: 0, // no slippage check for simplicity
-            toleranceRange: 0
+            priceTolerated: 5e14, // price = amount1 * 1e18 / amount2 = 1e18 / 2000 = 5e14
+            toleranceRange: 1e7 - 1 // max tolerance to effectively bypass slippage
         });
 
         openSwap.FulfillFeeParams memory fulfillFeeParams = openSwap.FulfillFeeParams({
@@ -200,6 +200,7 @@ contract OpenSwapHappyPathTest is Test {
             uint256 start,
             uint256 forwardStartTime,
             uint256 roundLength,
+            uint256 recallUnlockAt,
             address payable creator,
             address editor,
             address bountyToken,
