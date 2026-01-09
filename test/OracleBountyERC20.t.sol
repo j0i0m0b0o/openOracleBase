@@ -156,7 +156,8 @@ contract OracleBountyERC20Test is Test {
             address(0), // bountyToken (ETH)
             BOUNTY_MAX, // maxAmount
             ROUND_LENGTH,
-            recallOnClaim
+            recallOnClaim,
+            0 // recallDelay
         );
     }
 
@@ -176,7 +177,8 @@ contract OracleBountyERC20Test is Test {
             address(0),
             BOUNTY_MAX,
             ROUND_LENGTH,
-            recallOnClaim
+            recallOnClaim,
+            0 // recallDelay
         );
     }
 
@@ -200,7 +202,8 @@ contract OracleBountyERC20Test is Test {
             address(bountyToken),
             bountyAmount,
             ROUND_LENGTH,
-            recallOnClaim
+            recallOnClaim,
+            0 // recallDelay
         );
     }
 
@@ -223,7 +226,8 @@ contract OracleBountyERC20Test is Test {
             address(blacklistToken),
             bountyAmount,
             ROUND_LENGTH,
-            recallOnClaim
+            recallOnClaim,
+            0 // recallDelay
         );
     }
 
@@ -246,7 +250,8 @@ contract OracleBountyERC20Test is Test {
             address(0),
             BOUNTY_MAX,
             ROUND_LENGTH,
-            false
+            false,
+            0 // recallDelay
         );
 
         // Check creator balance decreased
@@ -260,6 +265,7 @@ contract OracleBountyERC20Test is Test {
             uint256 start,
             uint256 forwardStartTime,
             uint256 roundLength,
+            uint256 recallUnlockAt,
             address payable bountyCreator,
             address bountyEditor,
             address bToken,
@@ -306,7 +312,8 @@ contract OracleBountyERC20Test is Test {
             address(bountyToken),
             bountyAmount,
             ROUND_LENGTH,
-            true
+            true,
+            0 // recallDelay
         );
 
         // Check tokens transferred
@@ -314,7 +321,7 @@ contract OracleBountyERC20Test is Test {
         assertEq(bountyToken.balanceOf(address(bountyContract)), bountyAmount, "Bounty contract should hold tokens");
 
         // Check bounty struct
-        (,,,,,,,, address bToken,,,,,,bool recallOnClaim) = bountyContract.Bounty(reportId);
+        (,,,,,,,,, address bToken,,,,,, bool recallOnClaim) = bountyContract.Bounty(reportId);
         assertEq(bToken, address(bountyToken), "bountyToken should be set");
         assertTrue(recallOnClaim, "recallOnClaim should be true");
     }
@@ -337,10 +344,11 @@ contract OracleBountyERC20Test is Test {
             address(0),
             BOUNTY_MAX,
             ROUND_LENGTH,
-            false
+            false,
+            0 // recallDelay
         );
 
-        (,,, uint256 start, uint256 fwdTime,,,,,,,,,,) = bountyContract.Bounty(reportId);
+        (,,, uint256 start, uint256 fwdTime,,,,,,,,,,,) = bountyContract.Bounty(reportId);
         assertEq(start, block.timestamp + forwardTime, "start should be current + forward");
         assertEq(fwdTime, forwardTime, "forwardStartTime should be stored");
     }
@@ -365,7 +373,8 @@ contract OracleBountyERC20Test is Test {
             address(0),
             BOUNTY_MAX,
             ROUND_LENGTH,
-            false
+            false,
+            0 // recallDelay
         );
     }
 
@@ -386,7 +395,8 @@ contract OracleBountyERC20Test is Test {
             address(0),
             BOUNTY_MAX,
             ROUND_LENGTH,
-            false
+            false,
+            0 // recallDelay
         );
     }
 
@@ -407,7 +417,8 @@ contract OracleBountyERC20Test is Test {
             address(0),
             BOUNTY_MAX,
             ROUND_LENGTH,
-            false
+            false,
+            0 // recallDelay
         );
     }
 
@@ -428,7 +439,8 @@ contract OracleBountyERC20Test is Test {
             address(0),
             BOUNTY_MAX,
             ROUND_LENGTH,
-            false
+            false,
+            0 // recallDelay
         );
     }
 
@@ -447,7 +459,7 @@ contract OracleBountyERC20Test is Test {
         assertEq(reporter.balance, reporterEthBefore + expectedBounty, "Reporter should receive bounty");
 
         // Check bounty state
-        (,, uint256 bountyClaimed,,,,,,,,, bool claimed,,,) = bountyContract.Bounty(reportId);
+        (,, uint256 bountyClaimed,,,,,,,,,, bool claimed,,,) = bountyContract.Bounty(reportId);
         assertTrue(claimed, "Bounty should be marked claimed");
         assertEq(bountyClaimed, expectedBounty, "bountyClaimed should match");
     }
@@ -507,7 +519,8 @@ contract OracleBountyERC20Test is Test {
             address(0),
             BOUNTY_MAX,
             ROUND_LENGTH,
-            false
+            false,
+            0 // recallDelay
         );
 
         // Try to submit before start time
@@ -547,7 +560,7 @@ contract OracleBountyERC20Test is Test {
         assertEq(creator.balance, creatorEthBefore + recalled, "Creator should receive recalled amount");
 
         // Check bounty state
-        (,,,,,,,,,,,, bool isRecalled,,) = bountyContract.Bounty(reportId);
+        (,,,,,,,,,,,,, bool isRecalled,,) = bountyContract.Bounty(reportId);
         assertTrue(isRecalled, "Bounty should be marked recalled");
     }
 
@@ -563,7 +576,7 @@ contract OracleBountyERC20Test is Test {
         assertEq(creator.balance, creatorEthBefore, "Creator should not receive anything yet");
 
         // Bounty should NOT be marked recalled
-        (,,,,,,,,,,,, bool isRecalled,,) = bountyContract.Bounty(reportId);
+        (,,,,,,,,,,,,, bool isRecalled,,) = bountyContract.Bounty(reportId);
         assertFalse(isRecalled, "Bounty should NOT be marked recalled");
     }
 
@@ -577,7 +590,7 @@ contract OracleBountyERC20Test is Test {
         bountyContract.submitInitialReport(reportId, INITIAL_LIQUIDITY, 2000e18, stateHash, reporter);
 
         // Check bounty struct for amounts
-        (uint256 totalDeposited, uint256 bountyStartAmt,,,,,,,,,,,,,) = bountyContract.Bounty(reportId);
+        (uint256 totalDeposited, uint256 bountyStartAmt,,,,,,,,,,,,,,) = bountyContract.Bounty(reportId);
 
         uint256 bountyPaid = bountyStartAmt; // round 0
         uint256 recalled = totalDeposited - bountyPaid;
@@ -591,6 +604,9 @@ contract OracleBountyERC20Test is Test {
     function testRecallBounty_BeforeClaim_FullAmount() public {
         (uint256 reportId,) = _createBountyAndOracleReport(false);
 
+        // Warp past recall delay
+        vm.warp(block.timestamp + 1);
+
         uint256 creatorEthBefore = creator.balance;
 
         vm.prank(creator);
@@ -598,7 +614,7 @@ contract OracleBountyERC20Test is Test {
 
         assertEq(creator.balance, creatorEthBefore + BOUNTY_MAX, "Creator should receive full bounty");
 
-        (,,,,,,,,,,,, bool recalled,,) = bountyContract.Bounty(reportId);
+        (,,,,,,,,,,,,, bool recalled,,) = bountyContract.Bounty(reportId);
         assertTrue(recalled, "Should be marked recalled");
     }
 
@@ -623,6 +639,9 @@ contract OracleBountyERC20Test is Test {
     function testRecallBounty_EditorCanRecall() public {
         (uint256 reportId,) = _createBountyAndOracleReport(false);
 
+        // Warp past recall delay
+        vm.warp(block.timestamp + 1);
+
         uint256 creatorEthBefore = creator.balance;
 
         // Editor recalls (funds go to creator)
@@ -642,6 +661,9 @@ contract OracleBountyERC20Test is Test {
 
     function testRecallBounty_RevertAlreadyRecalled() public {
         (uint256 reportId,) = _createBountyAndOracleReport(false);
+
+        // Warp past recall delay
+        vm.warp(block.timestamp + 1);
 
         vm.prank(creator);
         bountyContract.recallBounty(reportId);
@@ -676,12 +698,12 @@ contract OracleBountyERC20Test is Test {
         bountyContract.editBounty(oldReportId, newReportId);
 
         // Old bounty should be marked recalled with 0 deposit
-        (uint256 oldDeposit,,,,,,,,,,,, bool oldRecalled,,) = bountyContract.Bounty(oldReportId);
+        (uint256 oldDeposit,,,,,,,,,,,,, bool oldRecalled,,) = bountyContract.Bounty(oldReportId);
         assertTrue(oldRecalled, "Old bounty should be recalled");
         assertEq(oldDeposit, 0, "Old deposit should be 0");
 
         // New bounty should have the funds
-        (uint256 newDeposit,,,,,,,,,,,,,,) = bountyContract.Bounty(newReportId);
+        (uint256 newDeposit,,,,,,,,,,,,,,,) = bountyContract.Bounty(newReportId);
         assertEq(newDeposit, BOUNTY_MAX, "New bounty should have funds");
     }
 
@@ -699,7 +721,8 @@ contract OracleBountyERC20Test is Test {
     function testEditBounty_RevertAfterRecall() public {
         (uint256 oldReportId,) = _createBountyAndOracleReport(false);
 
-        // Recall first
+        // Warp past recall delay then recall
+        vm.warp(block.timestamp + 1);
         vm.prank(creator);
         bountyContract.recallBounty(oldReportId);
 
@@ -725,7 +748,8 @@ contract OracleBountyERC20Test is Test {
     function testSubmitInitialReport_RevertBountyRecalled() public {
         (uint256 reportId, bytes32 stateHash) = _createBountyAndOracleReport(false);
 
-        // Recall bounty
+        // Warp past recall delay then recall bounty
+        vm.warp(block.timestamp + 1);
         vm.prank(creator);
         bountyContract.recallBounty(reportId);
 
@@ -756,7 +780,8 @@ contract OracleBountyERC20Test is Test {
             address(0),
             BOUNTY_MAX,
             ROUND_LENGTH,
-            false
+            false,
+            0 // recallDelay
         );
 
         // Submit report with rejecter as reporter - ETH should go to tempHolding
@@ -774,6 +799,9 @@ contract OracleBountyERC20Test is Test {
 
         // Create bounty with rejecter as creator
         (uint256 reportId,) = _createBountyWithCreatorAndOracleReport(address(rejecter), false);
+
+        // Warp past recall delay
+        vm.warp(block.timestamp + 1);
 
         // Recall bounty - should go to tempHolding since rejecter can't receive ETH
         vm.prank(address(rejecter));
@@ -806,6 +834,9 @@ contract OracleBountyERC20Test is Test {
 
         // Create bounty with rejecter as creator
         (uint256 reportId,) = _createBountyWithCreatorAndOracleReport(address(rejecter), false);
+
+        // Warp past recall delay
+        vm.warp(block.timestamp + 1);
 
         // Recall to put funds in tempHolding
         vm.prank(address(rejecter));
@@ -842,10 +873,12 @@ contract OracleBountyERC20Test is Test {
             address(0),
             BOUNTY_MAX,
             ROUND_LENGTH,
-            false
+            false,
+            0 // recallDelay
         );
 
-        // Recall - will fail and go to tempHolding
+        // Warp past recall delay then recall - will fail and go to tempHolding
+        vm.warp(block.timestamp + 1);
         vm.prank(address(rejecter));
         bountyContract.recallBounty(reportId);
 
@@ -975,10 +1008,12 @@ contract OracleBountyERC20Test is Test {
             address(0),
             BOUNTY_MAX,
             ROUND_LENGTH,
-            false
+            false,
+            0 // recallDelay
         );
 
-        // Recall first bounty
+        // Warp past recall delay then recall first bounty
+        vm.warp(block.timestamp + 1);
         vm.prank(address(rejecter));
         bountyContract.recallBounty(reportId1);
 
@@ -1000,10 +1035,12 @@ contract OracleBountyERC20Test is Test {
             address(0),
             BOUNTY_MAX,
             ROUND_LENGTH,
-            false
+            false,
+            0 // recallDelay
         );
 
-        // Recall second bounty
+        // Warp past recall delay then recall second bounty
+        vm.warp(block.timestamp + 2);
         vm.prank(address(rejecter));
         bountyContract.recallBounty(reportId2);
 
@@ -1058,5 +1095,253 @@ contract OracleBountyERC20Test is Test {
         // Reporter should have received bounty directly
         assertEq(bountyToken.balanceOf(reporter), reporterTokenBefore + 0.5e18, "Reporter received bounty");
         assertEq(bountyContract.tempHolding(reporter, address(bountyToken)), 0, "No tempHolding");
+    }
+
+    // ============ RecallDelay Tests ============
+
+    function testRecallDelay_BlocksRecallBeforeDelay() public {
+        uint48 delay = 3600; // 1 hour delay
+
+        // Create oracle report
+        (uint256 reportId,) = _createOracleReport();
+
+        // Create bounty with 1 hour recall delay
+        vm.prank(creator);
+        bountyContract.createOracleBounty{value: BOUNTY_MAX}(
+            reportId,
+            BOUNTY_START,
+            creator,
+            editor,
+            BOUNTY_MULTIPLIER,
+            BOUNTY_MAX_ROUNDS,
+            true,
+            address(0),
+            BOUNTY_MAX,
+            ROUND_LENGTH,
+            false,
+            delay
+        );
+
+        // Try to recall immediately - should fail
+        vm.prank(creator);
+        vm.expectRevert(abi.encodeWithSelector(openOracleBounty.InvalidInput.selector, "recall delay"));
+        bountyContract.recallBounty(reportId);
+
+        // Warp to just before delay ends
+        vm.warp(block.timestamp + delay - 1);
+
+        vm.prank(creator);
+        vm.expectRevert(abi.encodeWithSelector(openOracleBounty.InvalidInput.selector, "recall delay"));
+        bountyContract.recallBounty(reportId);
+    }
+
+    function testRecallDelay_AllowsRecallAfterDelay() public {
+        uint48 delay = 3600; // 1 hour delay
+
+        // Create oracle report
+        (uint256 reportId,) = _createOracleReport();
+
+        // Create bounty with 1 hour recall delay
+        vm.prank(creator);
+        bountyContract.createOracleBounty{value: BOUNTY_MAX}(
+            reportId,
+            BOUNTY_START,
+            creator,
+            editor,
+            BOUNTY_MULTIPLIER,
+            BOUNTY_MAX_ROUNDS,
+            true,
+            address(0),
+            BOUNTY_MAX,
+            ROUND_LENGTH,
+            false,
+            delay
+        );
+
+        // Warp past delay
+        vm.warp(block.timestamp + delay + 1);
+
+        uint256 creatorBalBefore = creator.balance;
+
+        // Recall should succeed
+        vm.prank(creator);
+        bountyContract.recallBounty(reportId);
+
+        assertEq(creator.balance, creatorBalBefore + BOUNTY_MAX, "Creator should receive bounty after delay");
+    }
+
+    function testRecallDelay_BypassedAfterClaim() public {
+        uint48 delay = 3600; // 1 hour delay
+
+        // Create oracle report
+        (uint256 reportId, bytes32 stateHash) = _createOracleReport();
+
+        // Create bounty with 1 hour recall delay
+        vm.prank(creator);
+        bountyContract.createOracleBounty{value: BOUNTY_MAX}(
+            reportId,
+            BOUNTY_START,
+            creator,
+            editor,
+            BOUNTY_MULTIPLIER,
+            BOUNTY_MAX_ROUNDS,
+            true,
+            address(0),
+            BOUNTY_MAX,
+            ROUND_LENGTH,
+            false,
+            delay
+        );
+
+        // Submit initial report (claims bounty)
+        vm.prank(reporter);
+        bountyContract.submitInitialReport(reportId, INITIAL_LIQUIDITY, 2000e18, stateHash, reporter);
+
+        // Now recall should work even though delay hasn't passed (because bounty is claimed)
+        uint256 creatorBalBefore = creator.balance;
+        uint256 expectedRecall = BOUNTY_MAX - BOUNTY_START;
+
+        vm.prank(creator);
+        bountyContract.recallBounty(reportId);
+
+        assertEq(creator.balance, creatorBalBefore + expectedRecall, "Creator should receive unclaimed portion");
+    }
+
+    function testRecallDelay_StoredInStruct() public {
+        uint48 delay = 7200; // 2 hours
+
+        // Create oracle report
+        (uint256 reportId,) = _createOracleReport();
+
+        uint256 creationTime = block.timestamp;
+
+        // Create bounty with delay
+        vm.prank(creator);
+        bountyContract.createOracleBounty{value: BOUNTY_MAX}(
+            reportId,
+            BOUNTY_START,
+            creator,
+            editor,
+            BOUNTY_MULTIPLIER,
+            BOUNTY_MAX_ROUNDS,
+            true,
+            address(0),
+            BOUNTY_MAX,
+            ROUND_LENGTH,
+            false,
+            delay
+        );
+
+        // Check recallUnlockAt is stored correctly
+        (,,,,,, uint256 recallUnlockAt,,,,,,,,,) = bountyContract.Bounty(reportId);
+        assertEq(recallUnlockAt, creationTime + delay, "recallUnlockAt should be creation time + delay");
+    }
+
+    function testRecallDelay_ZeroDelayStillRequiresTimeProgress() public {
+        // With delay = 0, recallUnlockAt = block.timestamp at creation
+        // Recall in same block should fail (time <= recallUnlockAt)
+
+        // Create oracle report
+        (uint256 reportId,) = _createOracleReport();
+
+        // Create bounty with 0 delay
+        vm.prank(creator);
+        bountyContract.createOracleBounty{value: BOUNTY_MAX}(
+            reportId,
+            BOUNTY_START,
+            creator,
+            editor,
+            BOUNTY_MULTIPLIER,
+            BOUNTY_MAX_ROUNDS,
+            true,
+            address(0),
+            BOUNTY_MAX,
+            ROUND_LENGTH,
+            false,
+            0 // zero delay
+        );
+
+        // Immediate recall should fail (time == recallUnlockAt)
+        vm.prank(creator);
+        vm.expectRevert(abi.encodeWithSelector(openOracleBounty.InvalidInput.selector, "recall delay"));
+        bountyContract.recallBounty(reportId);
+
+        // Warp 1 second and it should work
+        vm.warp(block.timestamp + 1);
+
+        vm.prank(creator);
+        bountyContract.recallBounty(reportId);
+    }
+
+    function testRecallDelay_BlockBased() public {
+        uint48 delay = 100; // 100 blocks
+
+        // Create oracle report
+        (uint256 reportId,) = _createOracleReport();
+
+        uint256 creationBlock = block.number;
+
+        // Create bounty with block-based timing and delay
+        vm.prank(creator);
+        bountyContract.createOracleBounty{value: BOUNTY_MAX}(
+            reportId,
+            BOUNTY_START,
+            creator,
+            editor,
+            BOUNTY_MULTIPLIER,
+            BOUNTY_MAX_ROUNDS,
+            false, // timeType = false means block-based
+            address(0),
+            BOUNTY_MAX,
+            ROUND_LENGTH,
+            false,
+            delay
+        );
+
+        // Check recallUnlockAt uses block number
+        (,,,,,, uint256 recallUnlockAt,,,,,,,,,) = bountyContract.Bounty(reportId);
+        assertEq(recallUnlockAt, creationBlock + delay, "recallUnlockAt should be creation block + delay");
+
+        // Roll 50 blocks - still before delay
+        vm.roll(block.number + 50);
+
+        vm.prank(creator);
+        vm.expectRevert(abi.encodeWithSelector(openOracleBounty.InvalidInput.selector, "recall delay"));
+        bountyContract.recallBounty(reportId);
+
+        // Roll past delay
+        vm.roll(block.number + 51);
+
+        vm.prank(creator);
+        bountyContract.recallBounty(reportId);
+    }
+
+    function testRecallDelay_EditorAlsoBlocked() public {
+        uint48 delay = 3600;
+
+        // Create oracle report
+        (uint256 reportId,) = _createOracleReport();
+
+        // Create bounty with delay
+        vm.prank(creator);
+        bountyContract.createOracleBounty{value: BOUNTY_MAX}(
+            reportId,
+            BOUNTY_START,
+            creator,
+            editor,
+            BOUNTY_MULTIPLIER,
+            BOUNTY_MAX_ROUNDS,
+            true,
+            address(0),
+            BOUNTY_MAX,
+            ROUND_LENGTH,
+            false,
+            delay
+        );
+
+        // Editor should also be blocked by recall delay
+        vm.prank(editor);
+        vm.expectRevert(abi.encodeWithSelector(openOracleBounty.InvalidInput.selector, "recall delay"));
+        bountyContract.recallBounty(reportId);
     }
 }
