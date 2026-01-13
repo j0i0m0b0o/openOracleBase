@@ -126,7 +126,7 @@ contract BountyAndPriceRequest is ReentrancyGuard {
             escalationHalt: 1000000000000000000,
             settlerReward: 500000000000,
             token1Address: 0x4200000000000000000000000000000000000006,
-            settlementTime: 600 * 10 * 4, // 4 hours
+            settlementTime: 600 * 6 * 4, // 4 hours
             disputeDelay: 0,
             protocolFee: 0,
             token2Address: 0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85,
