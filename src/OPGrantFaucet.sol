@@ -11,7 +11,7 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
  * @title BountyAndPriceRequest
  * @notice For Optimism growth grant.
  */
- 
+
 contract BountyAndPriceRequest is ReentrancyGuard {
     IOpenOracle public immutable oracle;
     IBountyERC20 public immutable bounty;
@@ -60,9 +60,9 @@ contract BountyAndPriceRequest is ReentrancyGuard {
     uint256 LastGame3Time; //seconds
     uint256 LastGame4Time; //seconds
 
-    uint256 Game1Timer = 60 * 10;
+    uint256 Game1Timer = 60 * 3;
     uint256 Game2Timer = 60 * 20;
-    uint256 Game3Timer = 60 * 60 * 4;
+    uint256 Game3Timer = 60 * 60;
     uint256 Game4Timer = 60 * 60 * 24;
 
     constructor(address _oracle, address _bounty, address _owner) {
@@ -70,7 +70,7 @@ contract BountyAndPriceRequest is ReentrancyGuard {
         require(_bounty != address(0), "bounty address cannot be 0");
         oracle = IOpenOracle(_oracle);
         bounty = IBountyERC20(_bounty);
-        owner = _owner;
+        owner = _owner; // will be project multisig when grant is actually received
 
     oracleGame1 = IOpenOracle.CreateReportParams({
         exactToken1Report: 2000000000000000,
@@ -93,7 +93,7 @@ contract BountyAndPriceRequest is ReentrancyGuard {
     });
 
     oracleGame2 = IOpenOracle.CreateReportParams({
-        exactToken1Report: 10000000,
+        exactToken1Report: 20000000,
         escalationHalt: 100000000,
         settlerReward: 500000000000,
         token1Address: 0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85,
@@ -156,42 +156,42 @@ contract BountyAndPriceRequest is ReentrancyGuard {
         bountyStartAmt: 1666666660000000,
         creator: address(this),
         editor: address(this),
-        bountyMultiplier: 11000,
+        bountyMultiplier: 11500,
         maxRounds: 35,
         timeType: true,
         forwardStartTime: 10,
         bountyToken: 0x4200000000000000000000000000000000000042,
-        maxAmount: 33333333300000000,
+        maxAmount: 53333333300000000,
         roundLength: 6,
         recallOnClaim: true,
         recallDelay: 0
     });
 
     bountyParam2 = BountyParamSet({
-        bountyStartAmt: 12866666660000000,
+        bountyStartAmt: 25866666660000000,
         creator: address(this),
         editor: address(this),
-        bountyMultiplier: 11000,
+        bountyMultiplier: 12000,
         maxRounds: 35,
         timeType: true,
         forwardStartTime: 20,
         bountyToken: 0x4200000000000000000000000000000000000042,
-        maxAmount: 257666666600000000,
+        maxAmount: 1257666666600000000,
         roundLength: 6,
         recallOnClaim: true,
         recallDelay: 0
     });
 
     bountyParam3 = BountyParamSet({
-        bountyStartAmt: 80066666660000000,
+        bountyStartAmt: 200066666660000000,
         creator: address(this),
         editor: address(this),
-        bountyMultiplier: 11000,
+        bountyMultiplier: 12000,
         maxRounds: 35,
         timeType: true,
         forwardStartTime: 20,
         bountyToken: 0x4200000000000000000000000000000000000042,
-        maxAmount: 1257666666600000000,
+        maxAmount: 31257666666600000000,
         roundLength: 6,
         recallOnClaim: true,
         recallDelay: 0
