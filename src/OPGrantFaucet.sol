@@ -19,16 +19,6 @@ contract BountyAndPriceRequest is ReentrancyGuard {
 
     using SafeERC20 for IERC20;
 
-    struct BountyParams {
-        uint256 totalAmtDeposited; // wei sent to bounty contract
-        uint256 bountyStartAmt; // starting bounty amount in wei
-        uint256 forward; // time past report creation the bounty starts escalating
-        uint16 bountyMultiplier; // per-block or per-second exponential increase (15000 = 1.5x)
-        uint16 maxRounds; // time window for exponential increase
-        address bountyToken; //token bounty is paid in
-        uint256 roundLength; // round length
-    }
-
     struct BountyParamSet {
         uint256 bountyStartAmt;
         address creator;
@@ -44,26 +34,15 @@ contract BountyAndPriceRequest is ReentrancyGuard {
         uint48 recallDelay;
     }
 
-    error InsufficientETH(uint256 sent, uint256 required);
+    IOpenOracle.CreateReportParams[4] public games;
+    uint256[4] public lastGameTime;
+    uint256[4] public gameTimer;
 
-    IOpenOracle.CreateReportParams public oracleGame1;
-    IOpenOracle.CreateReportParams public oracleGame2;
-    IOpenOracle.CreateReportParams public oracleGame3;
-    IOpenOracle.CreateReportParams public oracleGame4;
+    BountyParamSet[3] public bountyParams;
+    uint8[4] public bountyForGame;
 
-    BountyParamSet public bountyParam1;
-    BountyParamSet public bountyParam2;
-    BountyParamSet public bountyParam3;
-
-    uint256 LastGame1Time; //seconds
-    uint256 LastGame2Time; //seconds
-    uint256 LastGame3Time; //seconds
-    uint256 LastGame4Time; //seconds
-
-    uint256 Game1Timer = 60 * 3;
-    uint256 Game2Timer = 60 * 20;
-    uint256 Game3Timer = 60 * 60;
-    uint256 Game4Timer = 60 * 60 * 24;
+    event GameCreated(uint256 reportId, uint8 gameId);
+    error BadGameId();
 
     constructor(address _oracle, address _bounty, address _owner) {
         require(_oracle != address(0), "oracle address cannot be 0");
@@ -72,138 +51,149 @@ contract BountyAndPriceRequest is ReentrancyGuard {
         bounty = IBountyERC20(_bounty);
         owner = _owner; // will be project multisig when grant is actually received
 
-    oracleGame1 = IOpenOracle.CreateReportParams({
-        exactToken1Report: 2000000000000000,
-        escalationHalt: 20000000000000000,
-        settlerReward: 500000000000,
-        token1Address: 0x4200000000000000000000000000000000000006,
-        settlementTime: 10,
-        disputeDelay: 2,
-        protocolFee: 0,
-        token2Address: 0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85,
-        callbackGasLimit: 0,
-        feePercentage: 1,
-        multiplier: 125,
-        timeType: true,
-        trackDisputes: false,
-        keepFee: true,
-        callbackContract: address(0),
-        callbackSelector: bytes4(0),
-        protocolFeeRecipient: address(this)
-    });
+        gameTimer[0] = 60 * 3;
+        gameTimer[1] = 60 * 10;
+        gameTimer[2] = 60 * 60;
+        gameTimer[3] = 60 * 60 * 24;
 
-    oracleGame2 = IOpenOracle.CreateReportParams({
-        exactToken1Report: 20000000,
-        escalationHalt: 100000000,
-        settlerReward: 500000000000,
-        token1Address: 0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85,
-        settlementTime: 4,
-        disputeDelay: 0,
-        protocolFee: 250,
-        token2Address: 0x4200000000000000000000000000000000000006,
-        callbackGasLimit: 100000,
-        feePercentage: 1,
-        multiplier: 110,
-        timeType: false,
-        trackDisputes: false,
-        keepFee: true,
-        callbackContract: address(0),
-        callbackSelector: bytes4(0),
-        protocolFeeRecipient: address(this)
-    });
+        bountyForGame[0] = 0;
+        bountyForGame[1] = 0;
+        bountyForGame[2] = 1;
+        bountyForGame[3] = 2;
 
-    oracleGame3 = IOpenOracle.CreateReportParams({
-        exactToken1Report: 100000000,
-        escalationHalt: 1000000000,
-        settlerReward: 500000000000,
-        token1Address: 0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85,
-        settlementTime: 600,
-        disputeDelay: 0,
-        protocolFee: 0,
-        token2Address: 0x4200000000000000000000000000000000000006,
-        callbackGasLimit: 100000,
-        feePercentage: 1,
-        multiplier: 150,
-        timeType: true,
-        trackDisputes: false,
-        keepFee: true,
-        callbackContract: address(0),
-        callbackSelector: bytes4(0),
-        protocolFeeRecipient: address(this)
-    });
+        games[0] = IOpenOracle.CreateReportParams({
+            exactToken1Report: 2000000000000000,
+            escalationHalt: 20000000000000000,
+            settlerReward: 500000000000,
+            token1Address: 0x4200000000000000000000000000000000000006,
+            settlementTime: 10,
+            disputeDelay: 2,
+            protocolFee: 0,
+            token2Address: 0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85,
+            callbackGasLimit: 0,
+            feePercentage: 1,
+            multiplier: 125,
+            timeType: true,
+            trackDisputes: false,
+            keepFee: true,
+            callbackContract: address(0),
+            callbackSelector: bytes4(0),
+            protocolFeeRecipient: address(this)
+        });
 
-    oracleGame4 = IOpenOracle.CreateReportParams({
-        exactToken1Report: 200000000000000000,
-        escalationHalt: 1000000000000000000,
-        settlerReward: 500000000000,
-        token1Address: 0x4200000000000000000000000000000000000006,
-        settlementTime: 600 * 10 * 4, // 4 hours
-        disputeDelay: 0,
-        protocolFee: 0,
-        token2Address: 0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85,
-        callbackGasLimit: 100000,
-        feePercentage: 1,
-        multiplier: 115,
-        timeType: true,
-        trackDisputes: false,
-        keepFee: true,
-        callbackContract: address(0),
-        callbackSelector: bytes4(0),
-        protocolFeeRecipient: address(this)
-    });
+        games[1] = IOpenOracle.CreateReportParams({
+            exactToken1Report: 20000000,
+            escalationHalt: 100000000,
+            settlerReward: 500000000000,
+            token1Address: 0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85,
+            settlementTime: 4,
+            disputeDelay: 0,
+            protocolFee: 250,
+            token2Address: 0x4200000000000000000000000000000000000006,
+            callbackGasLimit: 100000,
+            feePercentage: 1,
+            multiplier: 110,
+            timeType: false,
+            trackDisputes: false,
+            keepFee: true,
+            callbackContract: address(0),
+            callbackSelector: bytes4(0),
+            protocolFeeRecipient: address(this)
+        });
 
-    bountyParam1 = BountyParamSet({
-        bountyStartAmt: 1666666660000000,
-        creator: address(this),
-        editor: address(this),
-        bountyMultiplier: 11500,
-        maxRounds: 35,
-        timeType: true,
-        forwardStartTime: 10,
-        bountyToken: 0x4200000000000000000000000000000000000042,
-        maxAmount: 53333333300000000,
-        roundLength: 6,
-        recallOnClaim: true,
-        recallDelay: 0
-    });
+        games[2] = IOpenOracle.CreateReportParams({
+            exactToken1Report: 100000000,
+            escalationHalt: 1000000000,
+            settlerReward: 500000000000,
+            token1Address: 0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85,
+            settlementTime: 600,
+            disputeDelay: 0,
+            protocolFee: 0,
+            token2Address: 0x4200000000000000000000000000000000000006,
+            callbackGasLimit: 100000,
+            feePercentage: 1,
+            multiplier: 150,
+            timeType: true,
+            trackDisputes: false,
+            keepFee: true,
+            callbackContract: address(0),
+            callbackSelector: bytes4(0),
+            protocolFeeRecipient: address(this)
+        });
 
-    bountyParam2 = BountyParamSet({
-        bountyStartAmt: 25866666660000000,
-        creator: address(this),
-        editor: address(this),
-        bountyMultiplier: 12000,
-        maxRounds: 35,
-        timeType: true,
-        forwardStartTime: 20,
-        bountyToken: 0x4200000000000000000000000000000000000042,
-        maxAmount: 1257666666600000000,
-        roundLength: 6,
-        recallOnClaim: true,
-        recallDelay: 0
-    });
+        games[3] = IOpenOracle.CreateReportParams({
+            exactToken1Report: 200000000000000000,
+            escalationHalt: 1000000000000000000,
+            settlerReward: 500000000000,
+            token1Address: 0x4200000000000000000000000000000000000006,
+            settlementTime: 600 * 10 * 4, // 4 hours
+            disputeDelay: 0,
+            protocolFee: 0,
+            token2Address: 0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85,
+            callbackGasLimit: 100000,
+            feePercentage: 1,
+            multiplier: 115,
+            timeType: true,
+            trackDisputes: false,
+            keepFee: true,
+            callbackContract: address(0),
+            callbackSelector: bytes4(0),
+            protocolFeeRecipient: address(this)
+        });
 
-    bountyParam3 = BountyParamSet({
-        bountyStartAmt: 200066666660000000,
-        creator: address(this),
-        editor: address(this),
-        bountyMultiplier: 12000,
-        maxRounds: 35,
-        timeType: true,
-        forwardStartTime: 20,
-        bountyToken: 0x4200000000000000000000000000000000000042,
-        maxAmount: 31257666666600000000,
-        roundLength: 6,
-        recallOnClaim: true,
-        recallDelay: 0
-    });
+        bountyParams[0] = BountyParamSet({
+            bountyStartAmt: 1666666660000000,
+            creator: address(this),
+            editor: address(this),
+            bountyMultiplier: 11500,
+            maxRounds: 35,
+            timeType: true,
+            forwardStartTime: 10,
+            bountyToken: 0x4200000000000000000000000000000000000042,
+            maxAmount: 53333333300000000,
+            roundLength: 6,
+            recallOnClaim: true,
+            recallDelay: 0
+        });
+
+        bountyParams[1] = BountyParamSet({
+            bountyStartAmt: 25866666660000000,
+            creator: address(this),
+            editor: address(this),
+            bountyMultiplier: 12000,
+            maxRounds: 35,
+            timeType: true,
+            forwardStartTime: 20,
+            bountyToken: 0x4200000000000000000000000000000000000042,
+            maxAmount: 1257666666600000000,
+            roundLength: 6,
+            recallOnClaim: true,
+            recallDelay: 0
+        });
+
+        bountyParams[2] = BountyParamSet({
+            bountyStartAmt: 200066666660000000,
+            creator: address(this),
+            editor: address(this),
+            bountyMultiplier: 12000,
+            maxRounds: 35,
+            timeType: true,
+            forwardStartTime: 20,
+            bountyToken: 0x4200000000000000000000000000000000000042,
+            maxAmount: 31257666666600000000,
+            roundLength: 6,
+            recallOnClaim: true,
+            recallDelay: 0
+        });
 
     }
 
-    function bountyAndPriceRequest1() external nonReentrant returns (uint256 reportId) {
-        BountyParamSet memory bountyParams = bountyParam1;
-        IOpenOracle.CreateReportParams memory reportParams = oracleGame1;
-        uint256 LastGameTime = LastGame1Time;
-        uint256 GameTimer = Game1Timer;
+    function bountyAndPriceRequest(uint8 gameId) external nonReentrant returns (uint256 reportId) {
+        if (gameId >= 4) revert BadGameId();
+        BountyParamSet memory bp = bountyParams[bountyForGame[gameId]];
+        IOpenOracle.CreateReportParams memory reportParams = games[gameId];
+        uint256 LastGameTime = lastGameTime[gameId];
+        uint256 GameTimer = gameTimer[gameId];
         uint256 oracleFee;
         uint256 bountyValue;
 
@@ -211,11 +201,11 @@ contract BountyAndPriceRequest is ReentrancyGuard {
             if (block.timestamp < LastGameTime + GameTimer) revert ("too early");
         }
 
-        oracleFee = oracleGame1.settlerReward + 1;
+        oracleFee = reportParams.settlerReward + 1;
         bountyValue = 0;
-        LastGame1Time = block.timestamp;
+        lastGameTime[gameId] = block.timestamp;
 
-        IERC20(bountyParams.bountyToken).forceApprove(address(bounty), bountyParams.maxAmount);
+        IERC20(bp.bountyToken).forceApprove(address(bounty), bp.maxAmount);
 
         // Create report instance
         reportId = oracle.createReportInstance{value: oracleFee}(reportParams);
@@ -223,22 +213,22 @@ contract BountyAndPriceRequest is ReentrancyGuard {
         // Create bounty
         bounty.createOracleBountyFwd{value: bountyValue}(
             reportId,
-            bountyParams.bountyStartAmt,
-            bountyParams.creator,
-            bountyParams.editor,
-            bountyParams.bountyMultiplier,
-            bountyParams.maxRounds,
-            bountyParams.timeType,
-            bountyParams.forwardStartTime,
-            bountyParams.bountyToken,
-            bountyParams.maxAmount,
-            bountyParams.roundLength,
-            bountyParams.recallOnClaim,
-            bountyParams.recallDelay
+            bp.bountyStartAmt,
+            bp.creator,
+            bp.editor,
+            bp.bountyMultiplier,
+            bp.maxRounds,
+            bp.timeType,
+            bp.forwardStartTime,
+            bp.bountyToken,
+            bp.maxAmount,
+            bp.roundLength,
+            bp.recallOnClaim,
+            bp.recallDelay
         );
 
-        IERC20(bountyParams.bountyToken).forceApprove(address(bounty), 0);
-
+        IERC20(bp.bountyToken).forceApprove(address(bounty), 0);
+        emit GameCreated(reportId, gameId);
     }
 
     function sweep(address tokenToGet, uint256 amount) external nonReentrant {
