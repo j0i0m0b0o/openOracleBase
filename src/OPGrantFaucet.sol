@@ -39,6 +39,8 @@ contract BountyAndPriceRequest is ReentrancyGuard {
     uint256[4] public gameTimer;
 
     BountyParamSet[3] public bountyParams;
+
+    uint256[4] public lastReportId;
     uint8[4] public bountyForGame;
 
     event GameCreated(uint256 reportId, uint8 gameId);
@@ -204,11 +206,12 @@ contract BountyAndPriceRequest is ReentrancyGuard {
         oracleFee = reportParams.settlerReward + 1;
         bountyValue = 0;
         lastGameTime[gameId] = block.timestamp;
-
+        
         IERC20(bp.bountyToken).forceApprove(address(bounty), bp.maxAmount);
 
         // Create report instance
         reportId = oracle.createReportInstance{value: oracleFee}(reportParams);
+        lastReportId[gameId] = reportId;
 
         // Create bounty
         bounty.createOracleBountyFwd{value: bountyValue}(
